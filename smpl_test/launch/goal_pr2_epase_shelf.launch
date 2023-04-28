@@ -8,7 +8,7 @@
     <param name="robot_description" command="$(find xacro)/xacro '$(find pr2_description)/robots/pr2.urdf.xacro'"/>
 
     <arg unless="$(arg debug)" name="launch-prefix" value=""/>
-    <arg     if="$(arg debug)" name="launch-prefix" value="xterm -e gdb --args"/>
+    <arg     if="$(arg debug)" name="launch-prefix" value="gdb -ex run --args"/>
 
     <arg unless="$(arg fullscreen)" name="rviz-fullscreen" value=""/>
     <arg     if="$(arg fullscreen)" name="rviz-fullscreen" value="--fullscreen"/>
