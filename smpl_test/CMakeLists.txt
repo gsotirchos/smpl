@@ -42,6 +42,9 @@ target_link_libraries(callPlanner ${catkin_LIBRARIES} smpl::smpl)
 add_executable(callPlannerEpase src/call_planner_epase.cpp src/collision_space_scene_multithread.cpp)
 target_link_libraries(callPlannerEpase ${catkin_LIBRARIES} smpl::smpl)
 
+add_executable(callPlannerArastar src/call_planner_arastar.cpp src/collision_space_scene_multithread.cpp)
+target_link_libraries(callPlannerArastar ${catkin_LIBRARIES} smpl::smpl)
+
 add_executable(evaluateEpase src/evaluate_epase.cpp src/collision_space_scene_multithread.cpp)
 target_link_libraries(evaluateEpase ${catkin_LIBRARIES} smpl::smpl)
 

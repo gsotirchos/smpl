@@ -16,7 +16,7 @@
     <!-- 0. RViz -->
     <node if="$(arg rviz)" type="rviz" name="rviz" pkg="rviz" args="-d $(find smpl_test)/config/config.rviz $(arg rviz-fullscreen)" launch-prefix="bash -c 'sleep $(arg start_delay); $0 $@' " />
 
-    <node pkg="smpl_test" type="callPlannerEpase" name="call_planner_epase"
+    <node pkg="smpl_test" type="callPlannerArastar" name="call_planner_arastar"
             launch-prefix="$(arg launch-prefix)" args="$(arg args)">
         <param name="planning_frame" value="odom_combined"/>
 

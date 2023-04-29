@@ -28,9 +28,12 @@ initial_configuration:
 #      yaw: 0.0
 
 goal:
+  #x: 0.4
+  #y: -0.6
+  #z: 0.7
   x: 0.4
-  y: -0.6
-  z: 0.7
+  y: -0.2
+  z: 0.36
   roll: 0.0
   pitch: 0.0
   yaw: 0.0
