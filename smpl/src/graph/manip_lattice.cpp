@@ -683,6 +683,14 @@ bool ManipLattice::projectToPose(int state_id, Affine3& pose)
     return projectToPose(state_id, pose, 0);
 }
 
+//========================================================================
+bool ManipLattice::projectToPose(RobotState const & state, Affine3 & pose)
+{
+    pose = computePlanningFrameFK(state, 0);
+    return true;
+}
+//========================================================================
+
 void ManipLattice::GetPreds(
     int state_id,
     std::vector<int>* preds,
@@ -862,6 +870,9 @@ bool ManipLattice::checkAction(const RobotState& state, const Action& action)
 
     // check for collisions along path from parent to first waypoint
     if (!collisionChecker()->isStateToStateValid(state, action[0])) {
+        //======================================
+        m_collision_states.push_back(action[0]);
+        //======================================
         SMPL_DEBUG_NAMED(G_EXPANSIONS_LOG, "        -> path to first waypoint in collision");
         violation_mask |= 0x00000004;
     }
@@ -876,6 +887,9 @@ bool ManipLattice::checkAction(const RobotState& state, const Action& action)
         auto& curr_istate = action[j];
         if (!collisionChecker()->isStateToStateValid(prev_istate, curr_istate))
         {
+            //========================================
+            m_collision_states.push_back(curr_istate);
+            //========================================
             SMPL_DEBUG_NAMED(G_EXPANSIONS_LOG, "        -> path between waypoints %zu and %zu in collision", j - 1, j);
             violation_mask |= 0x00000008;
             break;

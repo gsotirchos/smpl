@@ -137,6 +137,9 @@ public:
     ///@{
     bool projectToPose(int state_id, Affine3& pos, int tidx) override;
     bool projectToPose(int state_id, Affine3& pos) override;
+    //==========================================================
+    bool projectToPose(RobotState const & state, Affine3 & pos);
+    //==========================================================
     ///@}
 
     /// \name Required Public Functions from RobotPlanningSpace
@@ -181,6 +184,10 @@ public:
         std::vector<int>* preds,
         std::vector<int>* costs) override;
     ///@}
+
+    //==============================================================
+    std::vector<RobotState> m_collision_states;
+    //==============================================================
 
 protected:
 
