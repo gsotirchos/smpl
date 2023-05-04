@@ -36,6 +36,7 @@
 #include <assert.h>
 #include <algorithm>
 #include <functional>
+#include <unordered_set>
 
 // system includes
 #include <sbpl/heuristics/heuristic.h>
@@ -226,6 +227,10 @@ private:
 
     double m_satisfied_eps;
 
+    //==================================================
+    std::unordered_set<SearchState *> m_explored_states;
+    //==================================================
+
     void convertTimeParamsToReplanParams(
         const TimeParameters& t,
         ReplanParams& r) const;
@@ -257,6 +262,10 @@ private:
         SearchState* to_state,
         std::vector<int>& solution,
         int& cost) const;
+
+    //======================================
+    auto saveExploredStates() const -> void;
+    //======================================
 };
 
 } // namespace smpl

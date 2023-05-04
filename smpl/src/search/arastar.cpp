@@ -32,6 +32,7 @@
 #include <smpl/search/arastar.h>
 
 #include <algorithm>
+#include <fstream>
 
 // system includes
 #include <sbpl/utils/key.h>
@@ -39,6 +40,7 @@
 // project includes
 #include <smpl/time.h>
 #include <smpl/console/console.h>
+#include <smpl/graph/manip_lattice.h>
 
 namespace smpl {
 
@@ -206,6 +208,8 @@ int ARAStar::replan(
         }
         return !err;
     }
+
+    saveExploredStates();
 
     extractPath(goal_state, *solution, *cost);
     return !SUCCESS;
@@ -557,6 +561,10 @@ void ARAStar::expand(SearchState* s)
                     m_open.decrease(succ_state);
                 } else {
                     m_open.push(succ_state);
+
+                //===================================
+                m_explored_states.insert(succ_state);
+                //===================================
                 }
             } else if (!succ_state->incons) {
                 m_incons.push_back(succ_state);
@@ -635,5 +643,70 @@ void ARAStar::extractPath(
     std::reverse(solution.begin(), solution.end());
     cost = to_state->g;
 }
+
+
+//==============================================================
+auto ARAStar::saveExploredStates() const -> void
+{
+    std::ofstream outFile("/home/george/states_and_costs.csv");
+    auto const & mlspace = dynamic_cast<ManipLattice *>(m_space);
+    Eigen::Affine3d pose;
+
+    std::string separator = ",";
+    std::string header = "cost" + separator
+                         + "q1" + separator
+                         + "q2" + separator
+                         + "q3" + separator
+                         + "q4" + separator
+                         + "q5" + separator
+                         + "q6" + separator
+                         + "q7" + separator
+                         + "x" + separator
+                         + "y" + separator
+                         + "z";
+
+    outFile << header << "\n";  // add header
+
+    // Save collision states
+    for (const auto & state : mlspace->m_collision_states) {
+        outFile << "-1" << separator;  // cost indicating collision
+        for (const auto & joint_angle : state) {
+            outFile << std::to_string(joint_angle) << separator;
+        }
+
+        mlspace->projectToPose(state, pose);
+        outFile << std::to_string(pose.translation().x()) << separator
+                << std::to_string(pose.translation().y()) << separator
+                << std::to_string(pose.translation().z());
+                //<< std::to_string(pose.rotation().w()) << separator
+                //<< std::to_string(pose.rotation().x()) << separator
+                //<< std::to_string(pose.rotation().y()) << separator
+                //<< std::to_string(pose.rotation().z());
+
+        outFile << "\n";
+    }
+
+    // Save explored states
+    for (const auto & state : m_explored_states) {
+        outFile << std::to_string(state->g) << separator;  // cost indicating collision
+        for (const auto & joint_angle : mlspace->extractState(state->state_id)) {
+            outFile << std::to_string(joint_angle) << separator;
+        }
+
+        mlspace->projectToPose(state->state_id, pose);
+        outFile << std::to_string(pose.translation().x()) << separator
+                << std::to_string(pose.translation().y()) << separator
+                << std::to_string(pose.translation().z());
+                //<< std::to_string(pose.rotation().w()) << separator
+                //<< std::to_string(pose.rotation().x()) << separator
+                //<< std::to_string(pose.rotation().y()) << separator
+                //<< std::to_string(pose.rotation().z());
+
+        outFile << "\n";
+    }
+
+    outFile.close();
+}
+//==============================================================
 
 } // namespace smpl
