@@ -676,6 +676,28 @@ int main(int argc, char* argv[])
 //    req.trajectory_constraints;
 //    req.workspace_parameters;
 
+
+    //========================================================
+    std::ofstream outFile("/home/george/occupied_voxels.csv");
+    std::vector<Eigen::Vector3d> occupied_voxels_vec;
+
+    std::string separator = ",";
+
+    outFile << "x" << separator << "y" << separator << "z\n";  // add header
+
+    for (auto & grid : grid_vec) {
+        grid->getOccupiedVoxels(occupied_voxels_vec);
+    }
+
+    for (auto & voxel : occupied_voxels_vec) {
+        outFile << std::to_string(voxel[0]) << separator
+                << std::to_string(voxel[1]) << separator
+                << std::to_string(voxel[2]) << "\n";
+    }
+
+    outFile.close();
+    //========================================================
+
     // plan
     ROS_INFO("Calling solve...");
     moveit_msgs::PlanningScene planning_scene;
