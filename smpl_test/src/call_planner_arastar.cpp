@@ -678,7 +678,7 @@ int main(int argc, char* argv[])
 
 
     //========================================================
-    std::ofstream outFile("/home/george/occupied_voxels.csv");
+    std::ofstream outFile("../occupied_voxels.csv");
     std::vector<Eigen::Vector3d> occupied_voxels_vec;
 
     std::string separator = ",";

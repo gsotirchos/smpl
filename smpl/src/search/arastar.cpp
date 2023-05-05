@@ -648,7 +648,7 @@ void ARAStar::extractPath(
 //==============================================================
 auto ARAStar::saveExploredStates() const -> void
 {
-    std::ofstream outFile("/home/george/states_and_costs.csv");
+    std::ofstream outFile("../states_and_costs.csv");
     auto const & mlspace = dynamic_cast<ManipLattice *>(m_space);
     Eigen::Affine3d pose;
 
