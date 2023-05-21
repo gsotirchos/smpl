@@ -562,9 +562,9 @@ void ARAStar::expand(SearchState* s)
                 } else {
                     m_open.push(succ_state);
 
-                //===================================
-                m_explored_states.insert(succ_state);
-                //===================================
+                    //===================================
+                    m_explored_states.insert(succ_state);
+                    //===================================
                 }
             } else if (!succ_state->incons) {
                 m_incons.push_back(succ_state);
