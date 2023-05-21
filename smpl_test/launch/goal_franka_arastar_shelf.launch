@@ -1,0 +1,59 @@
+<launch>
+    <arg name="debug" default="false"/>
+    <arg name="fullscreen" default="true"/>
+    <arg name="start_delay" default="3.0" />
+    <arg name="rviz" default="true"/>
+    <arg name="args" default=""/>
+
+    <param name="robot_description" command="$(find xacro)/xacro '$(find franka_description)/robots/panda/panda.urdf.xacro' hand:=true"/>
+
+    <arg unless="$(arg debug)" name="launch-prefix" value=""/>
+    <arg     if="$(arg debug)" name="launch-prefix" value="gdb -ex run --args"/>
+
+    <arg unless="$(arg fullscreen)" name="rviz-fullscreen" value=""/>
+    <arg     if="$(arg fullscreen)" name="rviz-fullscreen" value="--fullscreen"/>
+
+    <!-- 0. RViz -->
+    <node if="$(arg rviz)" type="rviz" name="rviz" pkg="rviz" args="-d $(find smpl_test)/config/config.rviz $(arg rviz-fullscreen)" launch-prefix="bash -c 'sleep $(arg start_delay); $0 $@' " />
+
+    <node pkg="smpl_test" type="callPlannerArastar" name="call_planner_arastar"
+            launch-prefix="$(arg launch-prefix)" args="$(arg args)">
+        <param name="planning_frame" value="odom_combined"/>
+
+        <!-- 1. robot model (for planning) -->
+        <rosparam param="robot_model">
+            group_name: manipulator
+            planning_joints:
+                panda_joint1
+                panda_joint2
+                panda_joint3
+                panda_joint4
+                panda_joint5
+                panda_joint6
+                panda_joint7
+            kinematics_frame:
+                panda_link0
+            chain_tip_link:
+                panda_hand
+        </rosparam>
+
+        <!-- collision checking -->
+        <rosparam command="load" file="$(find sbpl_collision_checking_test)/config/collision_model_franka.yaml"/>
+
+        <!-- planner params -->
+        <rosparam command="load" file="$(find smpl_test)/config/franka_arm.yaml"/>
+        <param name="planning/mprim_filename" value="$(find smpl_test)/config/franka.mprim"/>
+        <param name="allowed_planning_time" value="600.0"/>
+        <param name="num_threads" value="6"/>
+
+        <!-- 2. scene -->
+        <!-- 2.1 robot state -->
+        <rosparam command="load" file="$(find smpl_test)/experiments/franka_goal_shelf.yaml"/>
+
+        <!-- 2.2 world state -->
+        <param name="object_filename" value="$(find smpl_test)/env/shelf.env"/>
+
+        <!-- 3. scenario -->
+    </node>
+</launch>
+
