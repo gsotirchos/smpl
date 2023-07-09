@@ -44,6 +44,10 @@
 #include <sbpl_collision_checking/voxel_operations.h>
 #include <sbpl_collision_checking/shape_visualization.h>
 
+//=============================
+#include <prepare_benchmarks.h>
+//=============================
+
 namespace smpl {
 namespace collision {
 
@@ -117,6 +121,14 @@ bool WorldCollisionModel::insertObject(const CollisionObject* object)
         model.cached_voxels = std::move(all_voxels);
         m_object_models.push_back(std::move(model));
     }
+
+    //=====================================================================
+    std::string const file_path = "/home/george/scene_sensed0001.yaml";
+    auto custom_voxels = benchmarks::readOccupiedVoxelsFromYAML(file_path);
+
+    m_grid->addPointsToField(custom_voxels);
+    return true;
+    //=====================================================================
 
     for (auto& voxel_list : m_object_models.back().cached_voxels) {
         ROS_DEBUG_NAMED(LOG, "Adding %zu voxels from collision object '%s' to the distance transform", voxel_list.size(), object->id.c_str());
