@@ -244,7 +244,7 @@ bool CollisionSpaceScene::AddCollisionObjectMsg(
     for (size_t i = 0; i < object.meshes.size(); ++i) {
         auto& mesh = object.meshes[i];
 
-        assert(0); // TODO: implement
+        //assert(0); // TODO: implement
 
         auto& mesh_pose = object.mesh_poses[i];
         Eigen::Affine3d transform;
