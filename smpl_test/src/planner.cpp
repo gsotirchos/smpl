@@ -6,7 +6,7 @@
 // #include <sym_plan/pr2_allowed_collision_pairs.hpp>
 #include "franka_allowed_collision_pairs.h"
 #include "planner.h"
-#include "pr2_allowed_collision_pairs.hpp"
+#include "pr2_allowed_collision_pairs.h"
 #include <thread>
 
 using namespace std;
