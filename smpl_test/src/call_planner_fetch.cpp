@@ -408,7 +408,7 @@ auto SetupRobotModel(
 
 int main(int argc, char * argv[]) {
     ros::init(argc, argv, "smpl_test");
-    ros::NodeHandle nh;
+    ros::NodeHandle const nh;
     ros::NodeHandle ph("~");
 
     int num_threads;
@@ -419,7 +419,7 @@ int main(int argc, char * argv[]) {
         ph.param("num_threads", num_threads, 1);
     }
 
-    std::cout << "num_threads: " << num_threads << std::endl;
+    std::cout << "num_threads: " << num_threads << '\n';
 
     ROS_INFO("Initialize visualizer");
     smpl::VisualizerROS visualizer(nh, 100);
@@ -721,22 +721,22 @@ int main(int argc, char * argv[]) {
     ///////////////////////////////////
 
     // TODO: Planner::VisualizeCollisionWorld()
-    //auto planning_stats = planner.getPlannerStats();
+    // auto planning_stats = planner.getPlannerStats();
     //
-    //ROS_INFO("Planning statistics");
-    //for (auto & entry : planning_stats) {
+    // ROS_INFO("Planning statistics");
+    // for (auto & entry : planning_stats) {
     //    ROS_INFO("    %s: %0.3f", entry.first.c_str(), entry.second);
     //}
     //
-    //ROS_INFO("Animate path");
+    // ROS_INFO("Animate path");
     //
-    //auto markers = cc.getCollisionWorldVisualization(0);
-    //auto occupied_voxels = cc.getOccupiedVoxelsVisualization();
-    //SV_SHOW_INFO(markers);
-    //SV_SHOW_INFO(occupied_voxels);
+    // auto markers = cc.getCollisionWorldVisualization(0);
+    // auto occupied_voxels = cc.getOccupiedVoxelsVisualization();
+    // SV_SHOW_INFO(markers);
+    // SV_SHOW_INFO(occupied_voxels);
     //
-    //size_t pidx = 0;
-    //while (ros::ok()) {
+    // size_t pidx = 0;
+    // while (ros::ok()) {
     //    auto & point = res.trajectory.joint_trajectory.points[pidx];
     //    auto markers_robot = cc.getCollisionRobotVisualization(0, point.positions);
     //    for (auto & m : markers.markers) {
