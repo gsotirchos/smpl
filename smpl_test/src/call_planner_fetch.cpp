@@ -434,8 +434,7 @@ int main(int argc, char * argv[]) {
 
     ROS_INFO("Load common parameters");
 
-    // Robot description required to initialize collision checker and robot
-    // model...
+    // Robot description required to initialize collision checker and robot model...
     auto robot_description_key = "robot_description";
     std::string robot_description_param;
     if (!nh.searchParam(robot_description_key, robot_description_param)) {

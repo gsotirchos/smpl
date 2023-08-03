@@ -71,8 +71,7 @@ bool Planner::Init() {
         ROS_INFO("Load common parameters");
     }
 
-    // Robot description required to initialize collision checker and robot
-    // model...
+    // Robot description required to initialize collision checker and robot model...
     auto robot_description_key = "robot_description";
     string robot_description_param;
     if (!nh_.searchParam(robot_description_key, robot_description_param)) {
