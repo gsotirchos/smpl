@@ -29,6 +29,9 @@
 
 /// \author Andrew Dornbush
 
+#ifndef EUCLID_DISTANCE_MAP_H
+#define EUCLID_DISTANCE_MAP_H
+
 #include <smpl/distance_map/distance_map.h>
 
 namespace smpl {
@@ -54,3 +57,5 @@ private:
 };
 
 } // namespace smpl
+
+#endif
