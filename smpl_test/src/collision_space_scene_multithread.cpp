@@ -159,13 +159,13 @@ bool CollisionSpaceSceneMultithread::ProcessCollisionObjectMsg(
 {
     if (object.operation == moveit_msgs::CollisionObject::ADD) 
         return AddCollisionObjectMsg(thread_idx, object);
-    // else if (object.operation == moveit_msgs::CollisionObject::REMOVE) 
-    //     return RemoveCollisionObjectMsg(object);
-    // else if (object.operation == moveit_msgs::CollisionObject::APPEND)
-    //     return AppendCollisionObjectMsg(object);
-    // else if (object.operation == moveit_msgs::CollisionObject::MOVE)
-    //   return RemoveCollisionObjectMsg(object) && AddCollisionObjectMsg(object);
-    //     // return MoveCollisionObjectMsg(object);
+    else if (object.operation == moveit_msgs::CollisionObject::REMOVE)
+        return RemoveCollisionObjectMsg(thread_idx, object);
+    else if (object.operation == moveit_msgs::CollisionObject::APPEND)
+        return AppendCollisionObjectMsg(thread_idx, object);
+    else if (object.operation == moveit_msgs::CollisionObject::MOVE)
+       return RemoveCollisionObjectMsg(thread_idx, object) && AddCollisionObjectMsg(thread_idx, object);
+       // return MoveCollisionObjectMsg(object);
     else 
     {
         ROS_WARN_NAMED(LOG, "Collision object operation '%d' is not supported", object.operation);
@@ -295,70 +295,72 @@ bool CollisionSpaceSceneMultithread::AddCollisionObjectMsg(
 
 }
 
-// bool CollisionSpaceSceneMultithread::RemoveCollisionObjectMsg(
-//     const moveit_msgs::CollisionObject& object)
-// {
-//     // find the collision object with this name
-//     auto* _object = FindCollisionObject(object.id);
-//     if (!_object) {
-//         ROS_WARN_NAMED(LOG, "Reject removal of collision object '%s'", object.id.c_str());
-//         return false;
-//     }
+bool CollisionSpaceSceneMultithread::RemoveCollisionObjectMsg(
+    const int thread_idx,
+    const moveit_msgs::CollisionObject& object)
+{
+    // find the collision object with this name
+    auto* _object = FindCollisionObject(object.id);
+    if (!_object) {
+        ROS_WARN_NAMED(LOG, "Reject removal of collision object '%s'", object.id.c_str());
+        return false;
+    }
 
-//     // remove from collision space
-//     if (!m_cspace->removeObject(_object)) {
-//         return false;
-//     }
+    // remove from collision space
+    if (!m_cspace->removeObject(thread_idx, _object)) {
+        return false;
+    }
 
-//     // remove all collision shapes belonging to this object
-//     auto belongs_to_object = [_object](const std::unique_ptr<CollisionShape>& shape) {
-//         auto is_shape = [&shape](const CollisionShape* s) {
-//             return s == shape.get();
-//         };
-//         auto it = std::find_if(
-//                 begin(_object->shapes), end(_object->shapes), is_shape);
-//         return it != end(_object->shapes);
-//     };
+    // remove all collision shapes belonging to this object
+    auto belongs_to_object = [_object](const std::unique_ptr<CollisionShape>& shape) {
+        auto is_shape = [&shape](const CollisionShape* s) {
+            return s == shape.get();
+        };
+        auto it = std::find_if(
+                begin(_object->shapes), end(_object->shapes), is_shape);
+        return it != end(_object->shapes);
+    };
 
-//     auto rit = std::remove_if(
-//             begin(m_collision_shapes), end(m_collision_shapes),
-//             belongs_to_object);
-//     m_collision_shapes.erase(rit, end(m_collision_shapes));
+    auto rit = std::remove_if(
+            begin(m_collision_shapes), end(m_collision_shapes),
+            belongs_to_object);
+    m_collision_shapes.erase(rit, end(m_collision_shapes));
 
-//     // remove the object itself
-//     auto is_object = [_object](const std::unique_ptr<CollisionObject>& object) {
-//         return object.get() == _object;
-//     };
-//     auto rrit = std::remove_if(
-//             begin(m_collision_objects), end(m_collision_objects), is_object);
-//     m_collision_objects.erase(rrit, end(m_collision_objects));
-//     return true;
-// }
+    // remove the object itself
+    auto is_object = [_object](const std::unique_ptr<CollisionObject>& object) {
+        return object.get() == _object;
+    };
+    auto rrit = std::remove_if(
+            begin(m_collision_objects), end(m_collision_objects), is_object);
+    m_collision_objects.erase(rrit, end(m_collision_objects));
+    return true;
+}
 
-// bool CollisionSpaceSceneMultithread::AppendCollisionObjectMsg(
-//     const moveit_msgs::CollisionObject& object)
-// {
-//     auto* _object = FindCollisionObject(object.id);
-//     if (!_object) {
-//         ROS_WARN_NAMED(LOG, "Reject append to missing collision object '%s'", object.id.c_str());
-//         return false;
-//     }
+bool CollisionSpaceSceneMultithread::AppendCollisionObjectMsg(
+    const int thread_idx,
+    const moveit_msgs::CollisionObject& object)
+{
+    auto* _object = FindCollisionObject(object.id);
+    if (!_object) {
+        ROS_WARN_NAMED(LOG, "Reject append to missing collision object '%s'", object.id.c_str());
+        return false;
+    }
 
-//     return m_cspace->insertShapes(_object);
-// }
+    return m_cspace->insertShapes(thread_idx, _object);
+}
 
-// bool CollisionSpaceSceneMultithread::MoveCollisionObjectMsg(
-//     const moveit_msgs::CollisionObject& object)
-// {
-//     auto* _object = FindCollisionObject(object.id);
-//     if (!_object) {
-//         ROS_WARN_NAMED(LOG, "Rejecting move of missing collision object '%s'", object.id.c_str());
-//         return false;
-//     }
+bool CollisionSpaceSceneMultithread::MoveCollisionObjectMsg(
+    int thread_idx,
+    const moveit_msgs::CollisionObject& object)
+{
+    auto* _object = FindCollisionObject(object.id);
+    if (!_object) {
+        ROS_WARN_NAMED(LOG, "Rejecting move of missing collision object '%s'", object.id.c_str());
+        return false;
+    }
 
-//     return m_cspace->moveShapes(_object);
-
-// }
+    return m_cspace->moveShapes(thread_idx, _object);
+}
 
 /// \brief Process an octomap
 /// \param octomap The octomap

@@ -23,9 +23,9 @@ public:
 
     bool ProcessCollisionObjectMsg(int thread_idx, const moveit_msgs::CollisionObject& object);
     bool AddCollisionObjectMsg(int thread_idx, const moveit_msgs::CollisionObject& object);
-    // bool RemoveCollisionObjectMsg(const moveit_msgs::CollisionObject& object);
-    // bool AppendCollisionObjectMsg(const moveit_msgs::CollisionObject& object);
-    // bool MoveCollisionObjectMsg(const moveit_msgs::CollisionObject& object);
+    bool RemoveCollisionObjectMsg(int thread_idx, const moveit_msgs::CollisionObject& object);
+    bool AppendCollisionObjectMsg(int thread_idx, const moveit_msgs::CollisionObject& object);
+    bool MoveCollisionObjectMsg(int thread_idx, const moveit_msgs::CollisionObject& object);
 
     // bool ProcessOctomapMsg(const octomap_msgs::OctomapWithPose& octomap);
 
@@ -38,8 +38,7 @@ public:
     //     bool is_diff);
 
     // bool UpdatePlanningScene(int thread_idx, const moveit_msgs::PlanningScene& scene);
-    // auto FindCollisionObject(const std::string& id) const
-    //     -> smpl::collision::CollisionObject*;
+    auto FindCollisionObject(const std::string& id) const -> smpl::collision::CollisionObject*;
 
     bool CheckCollisionObjectSanity(const moveit_msgs::CollisionObject& object) const;
     // bool CheckInsertOctomap(const octomap_msgs::OctomapWithPose& octomap) const;
