@@ -1,22 +1,18 @@
 #ifndef PLANNER_H
 #define PLANNER_H
 
+// standard includes
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include <moveit_msgs/GetMotionPlan.h>
-#include <moveit_msgs/PlanningScene.h>
-#include <ros/ros.h>
-#include <sym_plan_msgs/ProcessCollisionObject.h>
-#include <sym_plan_msgs/RequestIK.h>
-#include <sym_plan_msgs/RequestPlan.h>
-#include <visualization_msgs/MarkerArray.h>
-// #include <sym_plan_msgs/ProcessAttachedCollisionObject.h>
-
+// system includes
 #include <eigen_conversions/eigen_msg.h>
 #include <leatherman/print.h>
 #include <leatherman/utils.h>
+#include <moveit_msgs/GetMotionPlan.h>
+#include <moveit_msgs/PlanningScene.h>
+#include <ros/ros.h>
 #include <sbpl_kdl_robot_model/kdl_robot_model.h>
 #include <smpl/angles.h>
 #include <smpl/debug/visualizer_ros.h>
@@ -24,6 +20,11 @@
 #include <smpl/distance_map/euclid_distance_map.h>
 #include <smpl/ros/planner_interface.h>
 #include <smpl/ros/propagation_distance_field.h>
+// #include <sym_plan_msgs/ProcessAttachedCollisionObject.h>
+#include <sym_plan_msgs/ProcessCollisionObject.h>
+#include <sym_plan_msgs/RequestIK.h>
+#include <sym_plan_msgs/RequestPlan.h>
+#include <visualization_msgs/MarkerArray.h>
 
 #include "collision_space_scene_multithread.h"
 
@@ -109,6 +110,8 @@ namespace symplan {
         bool readPlannerConfig(ros::NodeHandle const & nh, PlannerConfig & config);
         bool readRobotModelConfig(ros::NodeHandle const & nh, RobotModelConfig & config);
         bool readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotState & state);
+        bool setStartState(double const * state);
+        bool setPlanningAndCollisionReferenceState(moveit_msgs::RobotState & state);
         void fillGoalConstraint(
           std::vector<double> const & pose,
           std::string const & frame_id,
