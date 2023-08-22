@@ -33,15 +33,13 @@ public:
         int thread_idx,
         const moveit_msgs::AttachedCollisionObject& obj);
 
-    // bool UpdatePlanningSceneWorld(
-    //     const moveit_msgs::PlanningSceneWorld& world,
-    //     bool is_diff);
+    // bool UpdatePlanningSceneWorld(const moveit_msgs::PlanningSceneWorld& world, bool is_diff);
 
     // bool UpdatePlanningScene(int thread_idx, const moveit_msgs::PlanningScene& scene);
     auto FindCollisionObject(const std::string& id) const -> smpl::collision::CollisionObject*;
 
     bool CheckCollisionObjectSanity(const moveit_msgs::CollisionObject& object) const;
-    // bool CheckInsertOctomap(const octomap_msgs::OctomapWithPose& octomap) const;
+    //bool CheckInsertOctomap(const octomap_msgs::OctomapWithPose& octomap) const;
 
 private:
 

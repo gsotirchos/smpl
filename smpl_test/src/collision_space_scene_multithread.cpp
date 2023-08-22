@@ -70,36 +70,36 @@ auto ConvertCollisionObjectToObjectMultithread(const moveit_msgs::CollisionObjec
     return std::move(o);
 }
 
-auto ConvertOctomapToObjectMultithread(const octomap_msgs::OctomapWithPose& octomap)
-    -> std::unique_ptr<const collision_detection::World::Object>
-{
-    // convert binary octomap message to octree
-    octomap::AbstractOcTree* abstract_tree =
-            octomap_msgs::binaryMsgToMap(octomap.octomap);
-    if (!abstract_tree) {
-        ROS_WARN_NAMED(LOG, "Failed to convert binary msg data to octomap");
-        return nullptr;
-    }
-
-    octomap::OcTree* tree = dynamic_cast<octomap::OcTree*>(abstract_tree);
-    if (!tree) {
-        ROS_WARN_NAMED(LOG, "Abstract Octree from binary msg data must be a concrete OcTree");
-        return nullptr;
-    }
-
-    decltype(shapes::OcTree().octree) ot(tree);         // snap into a shared_ptr
-    shapes::ShapeConstPtr sp(new shapes::OcTree(ot));   // snap into a shape
-
-    Eigen::Isometry3d transform;
-    tf::poseMsgToEigen(octomap.origin, transform);
-
-    // construct the object
-    auto o = smpl::make_unique<collision_detection::World::Object>(octomap.octomap.id); // snap into an object
-    o->shapes_.push_back(sp);
-    o->shape_poses_.push_back(transform);
-
-    return std::move(o);
-}
+//auto ConvertOctomapToObjectMultithread(const octomap_msgs::OctomapWithPose& octomap)
+//    -> std::unique_ptr<const collision_detection::World::Object>
+//{
+//    // convert binary octomap message to octree
+//    octomap::AbstractOcTree* abstract_tree =
+//            octomap_msgs::binaryMsgToMap(octomap.octomap);
+//    if (!abstract_tree) {
+//        ROS_WARN_NAMED(LOG, "Failed to convert binary msg data to octomap");
+//        return nullptr;
+//    }
+//
+//    octomap::OcTree* tree = dynamic_cast<octomap::OcTree*>(abstract_tree);
+//    if (!tree) {
+//        ROS_WARN_NAMED(LOG, "Abstract Octree from binary msg data must be a concrete OcTree");
+//        return nullptr;
+//    }
+//
+//    decltype(shapes::OcTree().octree) ot(tree);         // snap into a shared_ptr
+//    shapes::ShapeConstPtr sp(new shapes::OcTree(ot));   // snap into a shape
+//
+//    Eigen::Isometry3d transform;
+//    tf::poseMsgToEigen(octomap.origin, transform);
+//
+//    // construct the object
+//    auto o = smpl::make_unique<collision_detection::World::Object>(octomap.octomap.id); // snap into an object
+//    o->shapes_.push_back(sp);
+//    o->shape_poses_.push_back(transform);
+//
+//    return std::move(o);
+//}
 
 void CollisionSpaceSceneMultithread::SetCollisionSpace(CollisionSpaceMultithread* cspace)
 {
@@ -164,8 +164,8 @@ bool CollisionSpaceSceneMultithread::ProcessCollisionObjectMsg(
     else if (object.operation == moveit_msgs::CollisionObject::APPEND)
         return AppendCollisionObjectMsg(thread_idx, object);
     else if (object.operation == moveit_msgs::CollisionObject::MOVE)
-       return RemoveCollisionObjectMsg(thread_idx, object) && AddCollisionObjectMsg(thread_idx, object);
-       // return MoveCollisionObjectMsg(object);
+        //return RemoveCollisionObjectMsg(thread_idx, object) && AddCollisionObjectMsg(thread_idx, object);
+        return MoveCollisionObjectMsg(thread_idx, object);
     else 
     {
         ROS_WARN_NAMED(LOG, "Collision object operation '%d' is not supported", object.operation);
@@ -566,29 +566,29 @@ bool CollisionSpaceSceneMultithread::CheckCollisionObjectSanity(
     return true;
 }
 
-// bool CollisionSpaceSceneMultithread::CheckInsertOctomap(
-//     const octomap_msgs::OctomapWithPose& octomap) const
-// {
-//     if (octomap.header.frame_id != m_cspace->getReferenceFrame()) {
-//         ROS_WARN_NAMED(LOG, "Octomap must be specified in the grid reference frame (%s)", m_cspace->getReferenceFrame().c_str());
-//         return false;
-//     }
+//bool CollisionSpaceSceneMultithread::CheckInsertOctomap(
+//    const octomap_msgs::OctomapWithPose& octomap) const
+//{
+//    if (octomap.header.frame_id != m_cspace->getReferenceFrame()) {
+//        ROS_WARN_NAMED(LOG, "Octomap must be specified in the grid reference frame (%s)", m_cspace->getReferenceFrame().c_str());
+//        return false;
+//    }
+//
+//    if (!octomap.octomap.binary) {
+//        ROS_WARN_NAMED(LOG, "Octomap must be a binary octomap");
+//        return false;
+//    }
+//
+//    return true;
+//}
 
-//     if (!octomap.octomap.binary) {
-//         ROS_WARN_NAMED(LOG, "Octomap must be a binary octomap");
-//         return false;
-//     }
-
-//     return true;
-// }
-
-// auto CollisionSpaceSceneMultithread::FindCollisionObject(const std::string& id) const
-//     -> CollisionObject*
-// {
-//     for (auto& object : m_collision_objects) {
-//         if (object->id == id) {
-//             return object.get();
-//         }
-//     }
-//     return nullptr;
-// }
+auto CollisionSpaceSceneMultithread::FindCollisionObject(const std::string& id) const
+    -> CollisionObject*
+{
+    for (auto& object : m_collision_objects) {
+        if (object->id == id) {
+            return object.get();
+        }
+    }
+    return nullptr;
+}
