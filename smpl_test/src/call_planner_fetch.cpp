@@ -1,62 +1,74 @@
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // Copyright (c) 2012, Benjamin Cohen
 // All rights reserved.
 //
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
+// Redistribution and use in source and binary forms, with or
+// without modification, are permitted provided that the
+// following conditions are met:
 //
-//     1. Redistributions of source code must retain the above copyright notice
-//        this list of conditions and the following disclaimer.
-//     2. Redistributions in binary form must reproduce the above copyright
-//        notice, this list of conditions and the following disclaimer in the
-//        documentation and/or other materials provided with the distribution.
-//     3. Neither the name of the copyright holder nor the names of its
-//        contributors may be used to endorse or promote products derived from
-//        this software without specific prior written permission.
+//     1. Redistributions of source code must retain the above
+//        copyright notice this list of conditions and the
+//        following disclaimer.
+//     2. Redistributions in binary form must reproduce the above
+//        copyright notice, this list of conditions and the
+//        following disclaimer in the documentation and/or other
+//        materials provided with the distribution.
+//     3. Neither the name of the copyright holder nor the names
+//        of its contributors may be used to endorse or promote
+//        products derived from this software without specific
+//        prior written permission.
 //
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
-////////////////////////////////////////////////////////////////////////////////
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+// CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+// INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+// NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+// HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+// OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+// EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//////////////////////////////////////////////////////////////////////
 
 /// \author Benjamin Cohen
 
 // standard includes
+#include <ros/service.h>
 #include <stdlib.h>
 #include <string>
 #include <thread>
 #include <vector>
 
 // system includes
-#include <eigen_conversions/eigen_msg.h>
-#include <kdl_conversions/kdl_msg.h>
-#include <leatherman/print.h>
-#include <leatherman/utils.h>
-#include <moveit_msgs/GetMotionPlan.h>
-#include <moveit_msgs/PlanningScene.h>
+// #include <eigen_conversions/eigen_msg.h>
+// #include <kdl_conversions/kdl_msg.h>
+// #include <leatherman/print.h>
+// #include <leatherman/utils.h>
+// #include <moveit_msgs/GetMotionPlan.h>
+// #include <moveit_msgs/PlanningScene.h>
 #include <ros/ros.h>
-#include <sbpl_kdl_robot_model/kdl_robot_model.h>
-#include <smpl/angles.h>
-#include <smpl/debug/visualizer_ros.h>
-#include <smpl/distance_map/edge_euclid_distance_map.h>
-#include <smpl/distance_map/euclid_distance_map.h>
-#include <smpl/ros/planner_interface.h>
-#include <smpl/ros/propagation_distance_field.h>
-#include <visualization_msgs/MarkerArray.h>
+// #include <sbpl_kdl_robot_model/kdl_robot_model.h>
+// #include <smpl/angles.h>
+// #include <smpl/debug/visualizer_ros.h>
+// #include <smpl/distance_map/edge_euclid_distance_map.h>
+// #include <smpl/distance_map/euclid_distance_map.h>
+// #include <smpl/ros/planner_interface.h>
+// #include <smpl/ros/propagation_distance_field.h>
+// #include <visualization_msgs/MarkerArray.h>
 
-#include "collision_space_scene_multithread.h"
-#include "franka_allowed_collision_pairs.h"
+// #include "collision_space_scene_multithread.h"
+// #include "franka_allowed_collision_pairs.h"
+// #include "pr2_allowed_collision_pairs.h"
 #include "planner.h"
-#include "pr2_allowed_collision_pairs.h"
 
+// #include <sym_plan_msgs/ProcessAttachedCollisionObject.h>
+#include <sym_plan_msgs/ProcessCollisionObject.h>
+#include <sym_plan_msgs/RequestPlan.h>
+
+/*
 void FillGoalConstraint(
   std::vector<double> const & pose,
   std::string frame_id,
@@ -73,7 +85,7 @@ void FillGoalConstraint(
     goals.position_constraints[0].constraint_region.primitives.resize(1);
     goals.position_constraints[0].constraint_region.primitive_poses.resize(1);
     goals.position_constraints[0].constraint_region.primitives[0].type =
-      shape_msgs::SolidPrimitive::BOX;
+shape_msgs::SolidPrimitive::BOX;
     goals.position_constraints[0].constraint_region.primitive_poses[0].position.x = pose[0];
     goals.position_constraints[0].constraint_region.primitive_poses[0].position.y = pose[1];
     goals.position_constraints[0].constraint_region.primitive_poses[0].position.z = pose[2];
@@ -221,7 +233,8 @@ bool ReadInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotState & st
                     state.joint_state.position.push_back(double(xlist[i]["position"]));
                 } else {
                     ROS_DEBUG(
-                      "Doubles in the yaml file have to contain decimal points. (Convert '0' to '0.0')"
+                      "Doubles in the yaml file have to contain decimal points. (Convert '0' to
+'0.0')"
                     );
                     if (xlist[i]["position"].getType() == XmlRpc::XmlRpcValue::TypeInt) {
                         int pos = xlist[i]["position"];
@@ -383,14 +396,13 @@ bool ReadPlannerConfig(ros::NodeHandle const & nh, PlannerConfig & config) {
     return true;
 }
 
-auto SetupRobotModel(
-  std::string const & urdf,
-  RobotModelConfig const & config,
-  int num_threads
-) -> std::unique_ptr<smpl::KDLRobotModel> {
+auto SetupRobotModel(std::string const & urdf, RobotModelConfig const & config, int
+num_threads)
+  -> std::unique_ptr<smpl::KDLRobotModel> {
     if (config.kinematics_frame.empty() || config.chain_tip_link.empty()) {
         ROS_ERROR(
-          "Failed to retrieve param 'kinematics_frame' or 'chain_tip_link' from the param server"
+          "Failed to retrieve param 'kinematics_frame' or 'chain_tip_link' from the param
+server"
         );
         return NULL;
     }
@@ -405,340 +417,96 @@ auto SetupRobotModel(
 
     return std::move(rm);
 }
+*/
+
 
 int main(int argc, char * argv[]) {
     ros::init(argc, argv, "smpl_test");
-    ros::NodeHandle const nh;
-    ros::NodeHandle ph("~");
-
-    int num_threads;
-
-    if (argc == 2) {
-        num_threads = atoi(argv[1]);
-    } else {
-        ph.param("num_threads", num_threads, 1);
-    }
-
-    std::cout << "num_threads: " << num_threads << '\n';
-
-    ROS_INFO("Initialize visualizer");
-    smpl::VisualizerROS visualizer(nh, 100);
-    smpl::viz::set_visualizer(&visualizer);
-
-    // Let publishers set up
-    ros::Duration(1.0).sleep();
-
-    /////////////////
-    // Robot Model //
-    /////////////////
-
-    ROS_INFO("Load common parameters");
-
-    // Robot description required to initialize collision checker and robot model...
-    auto robot_description_key = "robot_description";
-    std::string robot_description_param;
-    if (!nh.searchParam(robot_description_key, robot_description_param)) {
-        ROS_ERROR("Failed to find 'robot_description' key on the param server");
-        return 1;
-    }
-
-    std::string robot_description;
-    if (!nh.getParam(robot_description_param, robot_description)) {
-        ROS_ERROR("Failed to retrieve param 'robot_description' from the param server");
-        return 1;
-    }
-
-    RobotModelConfig robot_config;
-    if (!ReadRobotModelConfig(ros::NodeHandle("~robot_model"), robot_config)) {
-        ROS_ERROR("Failed to read robot model config from param server");
-        return 1;
-    }
-
-    // Everyone needs to know the name of the planning frame for reasons...
-    // ...frame_id for the occupancy grid (for visualization)
-    // ...frame_id for collision objects (must be the same as the grid, other than that,
-    // useless)
-    std::string planning_frame;
-    if (!ph.getParam("planning_frame", planning_frame)) {
-        ROS_ERROR("Failed to retrieve param 'planning_frame' from the param server");
-        return 1;
-    }
-
-    ////////////////////
-    // Occupancy Grid //
-    ////////////////////
-
-    ROS_INFO("Initialize Occupancy Grid");
-
-    auto df_size_x = 3.0;
-    auto df_size_y = 3.0;
-    auto df_size_z = 3.0;
-    auto df_res = 0.02;
-    auto df_origin_x = -0.75;
-    auto df_origin_y = -1.5;
-    auto df_origin_z = 0.0;
-    auto max_distance = 1.8;
-
-    using DistanceMapType = smpl::EuclidDistanceMap;
-
-    auto df = std::make_shared<DistanceMapType>(
-      df_origin_x,
-      df_origin_y,
-      df_origin_z,
-      df_size_x,
-      df_size_y,
-      df_size_z,
-      df_res,
-      max_distance
-    );
-
-    auto ref_counted = false;
-    smpl::OccupancyGrid grid(df, ref_counted);
-    std::vector<smpl::OccupancyGrid *> grid_vec;
-
-    grid.setReferenceFrame(planning_frame);
-    SV_SHOW_INFO(grid.getBoundingBoxVisualization());
-
-    //////////////////////////////////
-    // Initialize Collision Checker //
-    //////////////////////////////////
-
-    ROS_INFO("Initialize collision checker");
-
-    // This whole manage storage for all the scene objects and must outlive
-    // its associated CollisionSpaceMultithread instance.
-    CollisionSpaceSceneMultithread scene;
-
-    smpl::collision::CollisionModelConfig cc_conf;
-    if (!smpl::collision::CollisionModelConfig::Load(ph, cc_conf)) {
-        ROS_ERROR("Failed to load Collision Model Config");
-        return 1;
-    }
-
-    smpl::collision::CollisionSpaceMultithread cc;
-    if (!cc.init(
-          num_threads,
-          &grid,
-          grid_vec,
-          robot_description,
-          cc_conf,
-          robot_config.group_name,
-          robot_config.planning_joints
-        )) {
-        ROS_ERROR("Failed to initialize Collision Space");
-        return 1;
-    }
-
-    if (cc.robotCollisionModel()->name() == "pr2") {
-        smpl::collision::AllowedCollisionMatrix acm;
-        for (auto & pair : PR2AllowedCollisionPairs) {
-            acm.setEntry(pair.first, pair.second, true);
-        }
-        cc.setAllowedCollisionMatrix(acm);
-    }
-
-    if (cc.robotCollisionModel()->name() == "panda") {
-        smpl::collision::AllowedCollisionMatrix acm;
-        for (auto & pair : FrankaAllowedCollisionPairs) {
-            acm.setEntry(pair.first, pair.second, true);
-        }
-        cc.setAllowedCollisionMatrix(acm);
-    }
-
-    /////////////////
-    // Setup Scene //
-    /////////////////
-
-    ROS_INFO("Initialize scene");
-
-    scene.SetCollisionSpace(&cc);
-
-    std::string object_filename;
-    ph.param<std::string>("object_filename", object_filename, "");
-
-    // Read in collision objects from file and add to the scene...
-    if (!object_filename.empty()) {
-        auto objects = GetCollisionObjects(object_filename, planning_frame);
-        for (auto & object : objects) {
-            for (auto tidx = 0; tidx < num_threads; ++tidx) {
-                scene.ProcessCollisionObjectMsg(tidx, object);
-            }
-        }
-    }
-
-    auto rm = SetupRobotModel(robot_description, robot_config, num_threads);
-    if (!rm) {
-        ROS_ERROR("Failed to set up Robot Model");
-        return 1;
-    }
-
-    // Read in start state from file and update the scene...
-    // Start state is also required by the planner...
-    moveit_msgs::RobotState start_state;
-    if (!ReadInitialConfiguration(ph, start_state)) {
-        ROS_ERROR("Failed to get initial configuration.");
-        return 1;
-    }
-
-    // Set reference state in the robot planning model...
-    smpl::urdf::RobotState reference_state;
-    InitRobotState(&reference_state, &rm->m_robot_model);
-    for (auto i = 0; i < start_state.joint_state.name.size(); ++i) {
-        auto * var = GetVariable(&rm->m_robot_model, &start_state.joint_state.name[i]);
-        if (var == NULL) {
-            ROS_WARN("Failed to do the thing");
-            continue;
-        }
-        ROS_INFO(
-          "Set joint %s to %f",
-          start_state.joint_state.name[i].c_str(),
-          start_state.joint_state.position[i]
-        );
-        SetVariablePosition(&reference_state, var, start_state.joint_state.position[i]);
-    }
-    SetReferenceState(rm.get(), GetVariablePositions(&reference_state));
-
-    // Set reference state in the collision model...
-    for (auto tidx = 0; tidx < num_threads; ++tidx) {
-        if (!scene.SetRobotState(tidx, start_state)) {
-            ROS_ERROR("Failed to set start state on Collision Space Scene");
-            return 1;
-        }
-
-        cc.setWorldToModelTransform(tidx, Eigen::Affine3d::Identity());
-    }
-
-
-    // SV_SHOW_INFO(grid.getDistanceFieldVisualization(0.2));
-
-    SV_SHOW_INFO(cc.getCollisionRobotVisualization(0));
-    SV_SHOW_INFO(cc.getCollisionWorldVisualization(0));
-    SV_SHOW_INFO(cc.getOccupiedVoxelsVisualization());
-
-    ///////////////////
-    // Planner Setup //
-    ///////////////////
-
-    PlannerConfig planning_config;
-    if (!ReadPlannerConfig(ros::NodeHandle("~planning"), planning_config)) {
-        ROS_ERROR("Failed to read planner config");
-        return 1;
-    }
-
-    smpl::PlannerInterface planner(rm.get(), &cc, grid_vec);
-
-    smpl::PlanningParams params;
-
-    params.addParam("num_threads", num_threads);
-    params.addParam("discretization", planning_config.discretization);
-    params.addParam("mprim_filename", planning_config.mprim_filename);
-    params.addParam("use_xyz_snap_mprim", planning_config.use_xyz_snap_mprim);
-    params.addParam("use_rpy_snap_mprim", planning_config.use_rpy_snap_mprim);
-    params.addParam("use_xyzrpy_snap_mprim", planning_config.use_xyzrpy_snap_mprim);
-    params.addParam("use_short_dist_mprims", planning_config.use_short_dist_mprims);
-    params.addParam("xyz_snap_dist_thresh", planning_config.xyz_snap_dist_thresh);
-    params.addParam("rpy_snap_dist_thresh", planning_config.rpy_snap_dist_thresh);
-    params.addParam("xyzrpy_snap_dist_thresh", planning_config.xyzrpy_snap_dist_thresh);
-    params.addParam("short_dist_mprims_thresh", planning_config.short_dist_mprims_thresh);
-    params.addParam("epsilon", 100.0);
-    params.addParam("search_mode", false);
-    params.addParam("allow_partial_solutions", false);
-    params.addParam("target_epsilon", 1.0);
-    params.addParam("delta_epsilon", 1.0);
-    params.addParam("improve_solution", false);
-    params.addParam("bound_expansions", true);
-    params.addParam("repair_time", 1.0);
-    params.addParam("bfs_inflation_radius", 0.02);
-    params.addParam("bfs_cost_per_cell", 100);
-
-    if (!planner.init(params)) {
-        ROS_ERROR("Failed to initialize Planner Interface");
-        return 1;
-    }
+    ros::NodeHandle nh;
+    ros::NodeHandle const ph("~");
 
     //////////////
     // Planning //
     //////////////
 
-    std::vector<double> goal(6, 0);
-    ph.param("goal/x", goal[0], 0.0);
-    ph.param("goal/y", goal[1], 0.0);
-    ph.param("goal/z", goal[2], 0.0);
-    ph.param("goal/roll", goal[3], 0.0);
-    ph.param("goal/pitch", goal[4], 0.0);
-    ph.param("goal/yaw", goal[5], 0.0);
+    // Let server(s) set up
+    ros::service::waitForService(symplan::Planner::planner_service_name, ros::Duration(1.0));
+    ros::Duration(10.0).sleep();
 
-    moveit_msgs::MotionPlanRequest req;
-    moveit_msgs::MotionPlanResponse res;
+    //== TODO: replace this with loading from yaml files ==================================
+    sym_plan_msgs::RequestPlan planner_srv;
 
-    ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
+    planner_srv.request.goal_type = "pose";
 
-    req.goal_constraints.resize(1);
-    FillGoalConstraint(goal, planning_frame, req.goal_constraints[0]);
-    req.group_name = robot_config.group_name;
-    req.max_acceleration_scaling_factor = 1.0;
-    req.max_velocity_scaling_factor = 1.0;
-    req.num_planning_attempts = 1;
-    //    req.path_constraints;
-    req.planner_id = "arastar.bfs.manip";
-    req.start_state = start_state;
-    //    req.trajectory_constraints;
-    //    req.workspace_parameters;
+    planner_srv.request.start_state.joint_state.position = std::vector<double>(7, 0);
 
+    ph.param("goal/x", planner_srv.request.goal[0], 0.4);
+    ph.param("goal/y", planner_srv.request.goal[1], -0.2);
+    ph.param("goal/z", planner_srv.request.goal[2], 0.36);
+    ph.param("goal/roll", planner_srv.request.goal[3], 0.0);
+    ph.param("goal/pitch", planner_srv.request.goal[4], 0.0);
+    ph.param("goal/yaw", planner_srv.request.goal[5], 0.0);
+    //=====================================================================================
 
-    //========================================================
-    std::ofstream outFile("../occupied_voxels.csv");
-    std::vector<Eigen::Vector3d> occupied_voxels_vec;
+    {  //== TODO: process loaded collision objects ==============
+        /*
+        std::ofstream outFile("../occupied_voxels.csv");
+        std::vector<Eigen::Vector3d> occupied_voxels_vec;
 
-    std::string const separator = ",";
+        std::string const separator = ",";
 
-    outFile << "x" << separator << "y" << separator << "z\n";  // add header
+        outFile << "x" << separator << "y" << separator << "z\n";  // add header
 
-    for (auto & grid : grid_vec) {
-        grid->getOccupiedVoxels(occupied_voxels_vec);
-    }
+        for (auto & grid : grid_vec) {
+            grid->getOccupiedVoxels(occupied_voxels_vec);
+        }
 
-    for (auto & voxel : occupied_voxels_vec) {
-        outFile << std::to_string(voxel[0]) << separator << std::to_string(voxel[1])
-                << separator << std::to_string(voxel[2]) << "\n";
-    }
+        for (auto & voxel : occupied_voxels_vec) {
+            outFile << std::to_string(voxel[0]) << separator << std::to_string(voxel[1])
+                    << separator << std::to_string(voxel[2]) << "\n";
+        }
 
-    outFile.close();
-    //========================================================
+        outFile.close();
+        */
+    }  //========================================================
 
     // plan
-    ROS_INFO("Calling solve...");
-    moveit_msgs::PlanningScene planning_scene;
-    planning_scene.robot_state = start_state;
-    if (!planner.solve(planning_scene, req, res)) {
-        ROS_ERROR("Failed to plan.");
-        return 1;
+    auto planner_service_client = nh.serviceClient<sym_plan_msgs::RequestPlan>(
+      symplan::Planner::planner_service_name
+    );
+
+    if (!planner_service_client.call(planner_srv)) {
+        ROS_ERROR("Failed when calling the planner service.");
     }
 
     ///////////////////////////////////
     // Visualizations and Statistics //
     ///////////////////////////////////
 
-    // TODO: Planner::VisualizeCollisionWorld()
+    // TODO: these are printed after requesting a plan(?)
     // auto planning_stats = planner.getPlannerStats();
     //
     // ROS_INFO("Planning statistics");
     // for (auto & entry : planning_stats) {
-    //    ROS_INFO("    %s: %0.3f", entry.first.c_str(), entry.second);
+    //    ROS_INFO("    %s: %0.3f", entry.first.c_str(),
+    //    entry.second);
     //}
-    //
+
+    // TODO: maybe needs Planner::VisualizeCollisionWorld()
     // ROS_INFO("Animate path");
     //
     // auto markers = cc.getCollisionWorldVisualization(0);
-    // auto occupied_voxels = cc.getOccupiedVoxelsVisualization();
+    // auto occupied_voxels =
+    // cc.getOccupiedVoxelsVisualization();
     // SV_SHOW_INFO(markers);
     // SV_SHOW_INFO(occupied_voxels);
     //
     // size_t pidx = 0;
     // while (ros::ok()) {
-    //    auto & point = res.trajectory.joint_trajectory.points[pidx];
-    //    auto markers_robot = cc.getCollisionRobotVisualization(0, point.positions);
-    //    for (auto & m : markers.markers) {
+    //    auto & point =
+    //    res.trajectory.joint_trajectory.points[pidx]; auto
+    //    markers_robot = cc.getCollisionRobotVisualization(0,
+    //    point.positions); for (auto & m : markers.markers) {
     //        m.ns = "path_animation";
     //    }
     //    SV_SHOW_INFO(markers_robot);

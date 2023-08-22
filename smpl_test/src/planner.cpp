@@ -1,53 +1,61 @@
 // #include <common/Utilities.hpp>
 #include <iostream>
 #include <moveit_msgs/JointConstraint.h>
+#include <thread>
+#include <vector>
+
 // #include <sym_plan/franka_allowed_collision_pairs.hpp>
-// #include <sym_plan/planner.hpp>
 // #include <sym_plan/pr2_allowed_collision_pairs.hpp>
 #include "franka_allowed_collision_pairs.h"
-#include "planner.h"
 #include "pr2_allowed_collision_pairs.h"
-#include <thread>
 
-using namespace std;
+#include "planner.h"
+
+constexpr bool VERBOSE = true;
+// #define print(x) (VERBOSE) ? ROS_INFO(x)
+
+
 using namespace symplan;
 
-#define VERBOSE 0
-// #define print(x) (VERBOSE)?ROS_INFO(x)
-
 Planner::Planner(
-  string const & robot,
+  std::string const & robot,
   ros::NodeHandle const & nh,
-  ros::NodeHandle const & ph,
-  string const & planner_service_name,
-  string const & collision_object_service_name,
-  string const & request_ik_service_name
+  ros::NodeHandle const & ph
 ) :
-    nh_(nh),
-    ph_(ph) {
-    planner_service_server_ =
-      nh_.advertiseService(planner_service_name, &Planner::RequestPlanCallback, this);
+  Planner(robot, nh, ph, std::unordered_map<std::string, double>()) {
+    // Advertise service servers
+    planner_service_server_ = nh_.advertiseService(
+      planner_service_name,
+      &Planner::RequestPlanCallback,
+      this
+    );
     collision_object_service_server_ = nh_.advertiseService(
       collision_object_service_name,
       &Planner::ProcessCollisionObjectCallback,
       this
     );
-    request_ik_service_server_ =
-      nh_.advertiseService(request_ik_service_name, &Planner::requestIKCallback, this);
-    Planner(robot, nh, ph, unordered_map<string, double>());
+    request_ik_service_server_ = nh_.advertiseService(
+      request_ik_service_name,
+      &Planner::requestIKCallback,
+      this
+    );
 }
 
 Planner::Planner(
-  string const & robot,
+  std::string const & robot,
   ros::NodeHandle const & nh,
   ros::NodeHandle const & ph,
-  unordered_map<string, double> cfg
+  std::unordered_map<std::string, double> cfg
 ) :
-    robot_(robot),
-    cfg_(cfg),
-    nh_(nh),
-    ph_(ph) {
-    visualizer_ = new smpl::VisualizerROS(nh_, 100);
+  robot_(robot),
+  nh_(nh),
+  ph_(ph),
+  cfg_(std::move(cfg)) {
+    if (VERBOSE) {
+        ROS_INFO("Initialize visualizer");
+    }
+
+    smpl::VisualizerROS * visualizer_ = new smpl::VisualizerROS(nh_, 100);
     smpl::viz::set_visualizer(visualizer_);
     attached_co_id_.clear();
 }
@@ -57,11 +65,7 @@ Planner::~Planner() {
 }
 
 bool Planner::Init() {
-    if (VERBOSE) {
-        ROS_INFO("Initialize visualizer");
-    }
-
-    num_threads_ = (cfg_["algorithm"] == 0) ? 1 : cfg_["num_threads"];
+    num_threads_ = (cfg_["algorithm"] == 0) ? 1 : static_cast<int>(cfg_["num_threads"]);
 
     /////////////////
     // Robot Model //
@@ -73,7 +77,7 @@ bool Planner::Init() {
 
     // Robot description required to initialize collision checker and robot model...
     auto robot_description_key = "robot_description";
-    string robot_description_param;
+    std::string robot_description_param;
     if (!nh_.searchParam(robot_description_key, robot_description_param)) {
         ROS_ERROR("Failed to find 'robot_description' key on the param server");
         return false;
@@ -84,25 +88,16 @@ bool Planner::Init() {
         return false;
     }
 
-
-    string robot_model_param_name;
-    if (robot_ == "pr2") {
-        robot_model_param_name = (cfg_["arm"] == 'r') ? "~robot_model_r" : "~robot_model_l";
-    } else if (robot_ == "franka") {
-        robot_model_param_name = "~robot_model";
-    } else {
-        throw runtime_error("Arm not indetified in planner");
-    }
-
-    if (!readRobotModelConfig(ros::NodeHandle(robot_model_param_name), robot_config_)) {
+    if (!readRobotModelConfig(ros::NodeHandle("~robot_model"), robot_config_)) {
         ROS_ERROR("Failed to read robot model config from param server");
         return false;
     }
 
-    // Everyone needs to know the name of the planning frame for reasons...
+    // Everyone needs to know the name of the planning frame for
+    // reasons...
     // ...frame_id for the occupancy grid (for visualization)
-    // ...frame_id for collision objects (must be the same as the grid, other than that,
-    // useless)
+    // ...frame_id for collision objects (must be the same as the
+    // grid, other than that, useless)
     if (!ph_.getParam("planning_frame", planning_frame_)) {
         ROS_ERROR("Failed to retrieve param 'planning_frame' from the param server");
         return false;
@@ -119,6 +114,7 @@ bool Planner::Init() {
     double df_size_x, df_size_y, df_size_z, df_res, df_origin_x, df_origin_y, df_origin_z,
       max_distance;
 
+    // TODO: check whether these have to be hardcoded here
     if (robot_ == "pr2") {
         df_size_x = 1.5;
         df_size_y = 2.0;
@@ -143,7 +139,7 @@ bool Planner::Init() {
 
     using DistanceMapType = smpl::EuclidDistanceMap;
 
-    auto df = make_shared<DistanceMapType>(
+    auto df = std::make_shared<DistanceMapType>(
       df_origin_x,
       df_origin_y,
       df_origin_z,
@@ -155,7 +151,7 @@ bool Planner::Init() {
     );
 
     auto ref_counted = false;
-    smpl::OccupancyGrid grid(df, ref_counted);
+    smpl::OccupancyGrid const grid(df, ref_counted);
     grid_ = grid;
 
     grid_.setReferenceFrame(planning_frame_);
@@ -168,9 +164,6 @@ bool Planner::Init() {
     if (VERBOSE) {
         ROS_INFO("Initialize collision checker");
     }
-
-    // This whole manage storage for all the scene objects and must outlive
-    // its associated CollisionSpace instance.
 
     smpl::collision::CollisionModelConfig cc_conf;
     if (!smpl::collision::CollisionModelConfig::Load(ph_, cc_conf)) {
@@ -192,29 +185,28 @@ bool Planner::Init() {
     }
 
     if (robot_ == "pr2") {
-        if (cfg_["arm"] == 'r') {
+        if (robot_config_.group_name == "right_arm") {
             gripper_links_.push_back("r_gripper_l_finger_link");
             gripper_links_.push_back("r_gripper_r_finger_link");
             gripper_links_.push_back("r_gripper_l_finger_tip_link");
             gripper_links_.push_back("r_gripper_r_finger_tip_link");
             gripper_links_.push_back("r_gripper_palm_link");
-        } else if (cfg_["arm"] == 'l') {
+        } else if (robot_config_.group_name == "left_arm") {
             gripper_links_.push_back("l_gripper_l_finger_link");
             gripper_links_.push_back("l_gripper_r_finger_link");
             gripper_links_.push_back("l_gripper_l_finger_tip_link");
             gripper_links_.push_back("l_gripper_r_finger_tip_link");
             gripper_links_.push_back("l_gripper_palm_link");
-
         } else {
-            throw runtime_error("Arm not indetified in planner");
+            throw std::runtime_error("Arm not indetified in planner");
         }
 
         smpl::collision::AllowedCollisionMatrix acm;
         for (auto & pair : PR2AllowedCollisionPairs) {
             acm.setEntry(pair.first, pair.second, true);
         }
-        cc_.setAllowedCollisionMatrix(acm);
 
+        cc_.setAllowedCollisionMatrix(acm);
     } else if (robot_ == "franka") {
         gripper_links_.push_back("panda_hand");
         gripper_links_.push_back("panda_leftfinger");
@@ -232,9 +224,8 @@ bool Planner::Init() {
         ROS_ERROR("Robot collision model not recognized");
     }
 
-
     // This does the same thing as turning the frames through config
-    // cc_.setWorldToModelTransform(Eigen::Affine3d::Identity());
+    // cc_.setWorldToModelTransform(Eigen::Affine3d::Identity());  // TODO: might be necessary
 
     /////////////////
     // Setup Scene //
@@ -246,13 +237,14 @@ bool Planner::Init() {
 
     cs_scene_.SetCollisionSpace(&cc_);
 
-    string object_filename;
-    ph_.param<string>("object_filename", object_filename, "");
-
-    // Read in collision objects from file and add to the cs_scene_...
+    // TODO: I don't need this; we use object definitions
+    // std::string object_filename;
+    // ph_.param<std::string>("object_filename", object_filename, "");
+    //
+    // //Read in collision objects from file and add to the cs_scene_...
     // if (!object_filename.empty()) {
-    //     auto objects = getCollisionObjects(object_filename, planning_frame_);
-    //     for (auto& object : objects) {
+    //     auto objects = getCollisionObjects(object_filename,
+    //     planning_frame_); for (auto& object : objects) {
     //         cs_scene_.ProcessCollisionObjectMsg(object);
     //     }
     // }
@@ -262,19 +254,14 @@ bool Planner::Init() {
         return false;
     }
 
-
-    // SV_SHOW_INFO(grid_.getDistanceFieldVisualization(0.2));
-
-    // SV_SHOW_INFO(cc_.getCollisionRobotVisualization());
-    // SV_SHOW_INFO(cc_.getCollisionWorldVisualization());
-    // SV_SHOW_INFO(cc_.getOccupiedVoxelsVisualization());
-
+    //== TODO: This exists in the planning callback; Do I need it here too? ==============
     // Initialize start state
     if (!readInitialConfiguration(ph_, start_state_)) {
         ROS_ERROR("Failed to get initial configuration.");
         return false;
     }
 
+    // Set reference state in the robot planning model...
     smpl::urdf::RobotState reference_state;
     InitRobotState(&reference_state, &rm_->m_robot_model);
     for (auto i = 0; i < start_state_.joint_state.name.size(); ++i) {
@@ -301,11 +288,20 @@ bool Planner::Init() {
             return false;
         }
 
-        // cc.setWorldToModelTransform(tidx, Eigen::Affine3d::Identity());
+        // TODO: why was this commented out? I might need it.
+        // cc_.setWorldToModelTransform(tidx, Eigen::Affine3d::Identity());
     }
 
-    // std::vector<double> us = {0, -0.78539816, 0, -2.35619449 , 0 , 1.57079633, 0.78539816};
+    // std::vector<double> us = {0, -0.78539816, 0, -2.35619449, 0, 1.57079633, 0.78539816};
     // cc_.updateState(us);
+
+
+    // TODO: this was comented out... Do I need it uncommented here?
+    // SV_SHOW_INFO(grid_.getDistanceFieldVisualization(0.2));
+    // SV_SHOW_INFO(cc_.getCollisionRobotVisualization());
+    // SV_SHOW_INFO(cc_.getCollisionWorldVisualization());
+    // SV_SHOW_INFO(cc_.getOccupiedVoxelsVisualization());
+    //====================================================================================
 
     ///////////////////
     // Planner Setup //
@@ -344,12 +340,16 @@ bool Planner::Init() {
     planner_params_.addParam("bfs_inflation_radius", 0.02);
     planner_params_.addParam("bfs_cost_per_cell", 100);
 
+    //== TODO: This too exists in the planning callback; Do I need it here too? ==========
     // Set up planner interface
-    planner_interface_ = make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
+    planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
     if (!planner_interface_->init(planner_params_)) {
         ROS_ERROR("Failed to initialize Planner Interface");
         return false;
     }
+    //====================================================================================
+
+    return true;
 }
 
 bool Planner::RequestPlanCallback(
@@ -361,136 +361,123 @@ bool Planner::RequestPlanCallback(
     }
 
     if (VERBOSE) {
-        cout << "Robot state: ";
+        std::cout << "Robot state: ";
         for (auto joint : request.start_state.joint_state.position) {
-            cout << joint << ", ";
+            std::cout << joint << ", ";
         }
-        cout << endl;
+        std::cout << '\n';
     }
 
-
-    // Read in start state from file and update the cs_scene_...
-    // Start state is also required by the planner...
-
-    // Replace this with initial start state
-    // if (!readInitialConfiguration(ph_, start_state)) {
-    //     ROS_ERROR("Failed to get initial configuration.");
-    //     response.success = false;
-    //     return false;
-    // }
-    // start_state = request.start_state;
-
-
+    // Set start state
     for (int i = 0; i < start_state_.joint_state.name.size(); ++i) {
         if (cc_.robotCollisionModel()->name() == "panda") {
             if (start_state_.joint_state.name[i] == "panda_joint1") {
-                start_state_.joint_state.position[i] =
-                  request.start_state.joint_state.position[0];
+                start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                         .position[0];
             }
 
             if (start_state_.joint_state.name[i] == "panda_joint2") {
-                start_state_.joint_state.position[i] =
-                  request.start_state.joint_state.position[1];
+                start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                         .position[1];
             }
 
             if (start_state_.joint_state.name[i] == "panda_joint3") {
-                start_state_.joint_state.position[i] =
-                  request.start_state.joint_state.position[2];
+                start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                         .position[2];
             }
 
             if (start_state_.joint_state.name[i] == "panda_joint4") {
-                start_state_.joint_state.position[i] =
-                  request.start_state.joint_state.position[3];
+                start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                         .position[3];
             }
 
             if (start_state_.joint_state.name[i] == "panda_joint5") {
-                start_state_.joint_state.position[i] =
-                  request.start_state.joint_state.position[4];
+                start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                         .position[4];
             }
 
             if (start_state_.joint_state.name[i] == "panda_joint6") {
-                start_state_.joint_state.position[i] =
-                  request.start_state.joint_state.position[5];
+                start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                         .position[5];
             }
 
             if (start_state_.joint_state.name[i] == "panda_joint7") {
-                start_state_.joint_state.position[i] =
-                  request.start_state.joint_state.position[6];
+                start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                         .position[6];
             }
         } else if (cc_.robotCollisionModel()->name() == "pr2") {
-            if (cfg_["arm"] == 'r') {
+            if (robot_config_.group_name == "right_arm") {
                 if (start_state_.joint_state.name[i] == "r_shoulder_pan_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[0];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[0];
                 }
 
                 if (start_state_.joint_state.name[i] == "r_shoulder_lift_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[1];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[1];
                 }
 
                 if (start_state_.joint_state.name[i] == "r_upper_arm_roll_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[2];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[2];
                 }
 
                 if (start_state_.joint_state.name[i] == "r_elbow_flex_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[3];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[3];
                 }
 
                 if (start_state_.joint_state.name[i] == "r_forearm_roll_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[4];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[4];
                 }
 
                 if (start_state_.joint_state.name[i] == "r_wrist_flex_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[5];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[5];
                 }
 
                 if (start_state_.joint_state.name[i] == "r_wrist_roll_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[6];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[6];
                 }
-            } else if (cfg_["arm"] == 'l') {
+            } else if (robot_config_.group_name == "left_arm") {
                 if (start_state_.joint_state.name[i] == "l_shoulder_pan_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[0];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[0];
                 }
 
                 if (start_state_.joint_state.name[i] == "l_shoulder_lift_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[1];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[1];
                 }
 
                 if (start_state_.joint_state.name[i] == "l_upper_arm_roll_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[2];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[2];
                 }
 
                 if (start_state_.joint_state.name[i] == "l_elbow_flex_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[3];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[3];
                 }
 
                 if (start_state_.joint_state.name[i] == "l_forearm_roll_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[4];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[4];
                 }
 
                 if (start_state_.joint_state.name[i] == "l_wrist_flex_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[5];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[5];
                 }
 
                 if (start_state_.joint_state.name[i] == "l_wrist_roll_joint") {
-                    start_state_.joint_state.position[i] =
-                      request.start_state.joint_state.position[6];
+                    start_state_.joint_state.position[i] = request.start_state.joint_state
+                                                             .position[6];
                 }
-
             } else {
-                throw runtime_error("Arm not indetified in planner");
+                throw std::runtime_error("Arm not indetified in planner");
             }
         }
     }
@@ -525,20 +512,10 @@ bool Planner::RequestPlanCallback(
     }
 
     // Call Planner
-    vector<double> goal(6, 0);
-    // Replace this with incoming request
-    // ph_.param("goal/x", goal[0], 0.0);
-    // ph_.param("goal/y", goal[1], 0.0);
-    // ph_.param("goal/z", goal[2], 0.0);
-    // ph_.param("goal/roll", goal[3], 0.0);
-    // ph_.param("goal/pitch", goal[4], 0.0);
-    // ph_.param("goal/yaw", goal[5], 0.0);
-    goal = request.goal;
-
+    std::vector<double> const goal{request.goal.begin(), request.goal.end()};
 
     moveit_msgs::MotionPlanRequest req;
     moveit_msgs::MotionPlanResponse res;
-
 
     if (cfg_.find("allowed_planning_time") != cfg_.end()) {
         req.allowed_planning_time = cfg_["allowed_planning_time"];
@@ -553,28 +530,27 @@ bool Planner::RequestPlanCallback(
     req.max_velocity_scaling_factor = 1.0;
     req.num_planning_attempts = 1;
 
-
-    string algo = (cfg_["algorithm"] == 0) ? "arastar" : "epase";
-
-
+    std::string const algo = (cfg_["algorithm"] == 0) ? "arastar" : "epase";
     if (request.goal_type == "pose") {
         req.planner_id = algo + ".bfs.manip";
     } else if (request.goal_type == "joints") {
         req.planner_id = algo + ".joint_distance.manip";
     } else {
-        throw runtime_error("Goal type not identified!");
+        throw std::runtime_error("Goal type not identified!");
     }
 
     req.start_state = start_state_;
 
+    //== TODO: This exists in Init() too; Do I need it here? ====================
     // Set up planner interface
-    planner_interface_ = make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, &grid_);
+    planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, &grid_);
 
     if (!planner_interface_->init(planner_params_)) {
         ROS_ERROR("Failed to initialize Planner Interface");
         response.success = false;
         return true;
     }
+    //===========================================================================
 
     // plan
     if (VERBOSE) {
@@ -609,7 +585,7 @@ bool Planner::RequestPlanCallback(
 
     // Send service reponse
     response.success = true;
-    response.plan.trajectory = res;
+    response.plan = res;
 
     return true;
 }
@@ -619,17 +595,18 @@ bool Planner::ProcessCollisionObjectCallback(
   sym_plan_msgs::ProcessCollisionObject::Response & response
 ) {
     if (VERBOSE) {
-        cout << "-------------- " << __FUNCTION__ << " START ---------------" << endl;
+        std::cout << "-------------- " << __FUNCTION__ << " START ---------------" << '\n';
     }
     bool succ = true;
     for (auto & object : request.objects) {
         if (VERBOSE) {
-            cout << "Processing collision object: " << string(object.id)
-                 << " | operation: " << object.operation << endl;
+            std::cout << "Processing collision object: " << std::string(object.id)
+                      << " | operation: " << object.operation << '\n';
         }
 
-        // If object is attached, detach it and add it to the collision scene
-        if ((object.id == attached_co_id_) && ((object.operation = moveit_msgs::CollisionObject::ADD) || (object.operation = moveit_msgs::CollisionObject::MOVE)))
+        // If object is attached, detach it and add it to the
+        // collision scene
+        if ((object.id == attached_co_id_) && ((object.operation == moveit_msgs::CollisionObject::ADD) || (object.operation == moveit_msgs::CollisionObject::MOVE)))
         {
             moveit_msgs::AttachedCollisionObject detach_object;
             detach_object.object = object;
@@ -640,15 +617,15 @@ bool Planner::ProcessCollisionObjectCallback(
                 if (!cs_scene_.ProcessAttachedCollisionObject(tidx, detach_object)) {
                     succ = false;
                     if (VERBOSE) {
-                        cout << "Could not detach collision object "
-                             << string(detach_object.object.id) << endl;
+                        std::cout << "Could not detach collision object "
+                                  << std::string(detach_object.object.id) << '\n';
                     }
                 }
             }
 
             smpl::collision::AllowedCollisionMatrix acm_detached;
             if (VERBOSE) {
-                cout << "Disabling collision with: " << attached_co_id_ << endl;
+                std::cout << "Disabling collision with: " << attached_co_id_ << '\n';
             }
             for (auto & gripper_link : gripper_links_) {
                 acm_detached.setEntry(attached_co_id_, gripper_link, false);
@@ -657,7 +634,7 @@ bool Planner::ProcessCollisionObjectCallback(
             attached_co_id_.clear();
         }
 
-        if (object.operation = moveit_msgs::CollisionObject::MOVE) {
+        if (object.operation == moveit_msgs::CollisionObject::MOVE) {
             if (!cs_scene_.FindCollisionObject(object.id)) {
                 object.operation = moveit_msgs::CollisionObject::ADD;
             }
@@ -668,13 +645,14 @@ bool Planner::ProcessCollisionObjectCallback(
             if (!cs_scene_.ProcessCollisionObjectMsg(tidx, object)) {
                 succ = false;
                 if (VERBOSE) {
-                    cout << "Could not process : " << object.operation << " collision object "
-                         << string(object.id) << " for thread " << tidx << endl;
+                    std::cout << "Could not process : " << object.operation
+                              << " collision object " << std::string(object.id)
+                              << " for thread " << tidx << '\n';
                 }
             } else {
                 if (VERBOSE) {
-                    cout << "Successfully " << object.operation << " collision object "
-                         << string(object.id) << " for thread " << tidx << endl;
+                    std::cout << "Successfully " << object.operation << " collision object "
+                              << std::string(object.id) << " for thread " << tidx << '\n';
                 }
             }
         }
@@ -684,22 +662,25 @@ bool Planner::ProcessCollisionObjectCallback(
 
     if (succ) {
         if (VERBOSE) {
-            cout << "All collision objects successfully processed!" << endl;
+            std::cout << "All collision objects successfully processed!" << '\n';
         }
     }
 
     response.success = succ;
     if (VERBOSE) {
-        cout << "-------------- " << __FUNCTION__ << " END ---------------" << endl;
+        std::cout << "-------------- " << __FUNCTION__ << " END ---------------" << '\n';
     }
+
+    return true;
 }
 
+/*
 bool Planner::ProcessAttachedCollisionObjectCallback(
   sym_plan_msgs::ProcessAttachedCollisionObject::Request & request,
   sym_plan_msgs::ProcessAttachedCollisionObject::Response & response
 ) {
     if (VERBOSE) {
-        cout << "-------------- " << __FUNCTION__ << " START ---------------" << endl;
+        std::cout << "-------------- " << __FUNCTION__ << " START ---------------" << '\n';
     }
 
     bool succ = true;
@@ -708,14 +689,15 @@ bool Planner::ProcessAttachedCollisionObjectCallback(
             if (attached_co_id_ != attached_object.object.id) {
                 smpl::collision::AllowedCollisionMatrix acm_detached;
                 if (VERBOSE) {
-                    cout << "Disabling collision with: " << attached_co_id_ << endl;
+                    std::cout << "Disabling collision with: " << attached_co_id_ << '\n';
                 }
                 for (auto & gripper_link : gripper_links_) {
                     acm_detached.setEntry(attached_co_id_, gripper_link, false);
                 }
                 cc_.updateAllowedCollisionMatrix(acm_detached);
 
-                // Detach existing attached object if new object not same
+                // Detach existing attached object if new object
+                // not same
                 moveit_msgs::AttachedCollisionObject detach_object;
                 detach_object.object.id = attached_co_id_;
                 detach_object.link_name = gripper_links_[0];
@@ -725,9 +707,9 @@ bool Planner::ProcessAttachedCollisionObjectCallback(
                     if (!cs_scene_.ProcessAttachedCollisionObject(tidx, detach_object)) {
                         succ = false;
                         if (VERBOSE) {
-                            cout << "Could not detach collision object "
-                                 << string(detach_object.object.id) << " thread " << tidx
-                                 << endl;
+                            std::cout << "Could not detach collision object "
+                                      << std::string(detach_object.object.id) << " thread "
+                                      << tidx << '\n';
                         }
                     }
 
@@ -743,22 +725,22 @@ bool Planner::ProcessAttachedCollisionObjectCallback(
                     if (!cs_scene_.ProcessAttachedCollisionObject(tidx, attached_object)) {
                         succ = false;
                         if (VERBOSE) {
-                            cout << "Could not attach collision object "
-                                 << string(attached_object.object.id) << " thread " << tidx
-                                 << endl;
+                            std::cout << "Could not attach collision object "
+                                      << std::string(attached_object.object.id) << " thread "
+                                      << tidx << '\n';
                         }
 
                     } else {
                         if (VERBOSE) {
-                            cout << "Successfully attached collision object "
-                                 << string(attached_object.object.id) << " thread " << tidx
-                                 << endl;
+                            std::cout << "Successfully attached collision object "
+                                      << std::string(attached_object.object.id) << " thread "
+                                      << tidx << '\n';
                         }
                     }
                 }
 
                 attached_co_id_ = attached_object.object.id;
-                cout << "Enabling collision with: " << attached_co_id_ << endl;
+                std::cout << "Enabling collision with: " << attached_co_id_ << '\n';
                 smpl::collision::AllowedCollisionMatrix acm_attached;
 
                 for (auto & gripper_link : gripper_links_) {
@@ -768,55 +750,68 @@ bool Planner::ProcessAttachedCollisionObjectCallback(
             }
         }
 
-        // cin.get();
+        // std::cin.get();
 
 
-        // ROS_INFO("Attached Body Count %zu \n", cc_.m_abcs->model()->attachedBodyCount());
-        // ROS_INFO("Has Attached Body(%s): %s \n", attached_co_id_.c_str(),
-        // cc_.m_abcm->hasAttachedBody(attached_co_id_) ? "true" : "false"); const int abidx =
-        // cc_.m_abcm->attachedBodyIndex(attached_co_id_); ROS_INFO("Attached Body Index: %d
-        // \n", abidx); ROS_INFO("Attached Body Name(%d): %s \n", abidx,
-        // cc_.m_abcm->attachedBodyName(abidx).c_str()); ROS_INFO("Attached Body Indices: %s",
-        // to_string(cc_.m_abcm->attachedBodyIndices(attach_link)).c_str());
+        // ROS_INFO("Attached Body Count %zu \n",
+        // cc_.m_abcs->model()->attachedBodyCount());
+        // ROS_INFO("Has Attached Body(%s): %s \n",
+        // attached_co_id_.c_str(),
+        // cc_.m_abcm->hasAttachedBody(attached_co_id_) ? "true"
+        // : "false"); const int abidx =
+        // cc_.m_abcm->attachedBodyIndex(attached_co_id_);
+        // ROS_INFO("Attached Body Index: %d \n", abidx);
+        // ROS_INFO("Attached Body Name(%d): %s \n", abidx,
+        // cc_.m_abcm->attachedBodyName(abidx).c_str());
+        // ROS_INFO("Attached Body Indices: %s",
+        // std::to_string(cc_.m_abcm->attachedBodyIndices(attach_link)).c_str());
 
-        // cout << "Attached Body Count: "<< cc_.m_abcs->model()->attachedBodyCount() << endl;
-        // printf("Has Attached Body(%s): %s \n", attached_co_id_.c_str(),
-        // cc_.m_abcm->hasAttachedBody(attached_co_id_) ? "true" : "false"); const int abidx =
-        // cc_.m_abcm->attachedBodyIndex(attached_co_id_); cout << "Attached Body Index: " <<
-        // abidx << endl; printf("Attached Body Name(%d): %s \n", abidx,
+        // std::cout << "Attached Body Count: "<<
+        // cc_.m_abcs->model()->attachedBodyCount() << '\n';
+        // printf("Has Attached Body(%s): %s \n",
+        // attached_co_id_.c_str(),
+        // cc_.m_abcm->hasAttachedBody(attached_co_id_) ? "true"
+        // : "false"); const int abidx =
+        // cc_.m_abcm->attachedBodyIndex(attached_co_id_); std::cout
+        // << "Attached Body Index: " << abidx << '\n';
+        // printf("Attached Body Name(%d): %s \n", abidx,
         // cc_.m_abcm->attachedBodyName(abidx).c_str());
     }
-    // cout << "Attached object: " <<request.attached_objects[0].object.id << "| Press enter to
-    // visulize\n"; getchar(); VisualizeCollisionWorld(); cout << "Visualziation complete \n";
-    // getchar();
+    // std::cout << "Attached object: "
+    // <<request.attached_objects[0].object.id << "| Press enter
+    // to visulize\n"; getchar(); VisualizeCollisionWorld(); std::cout
+    // << "Visualziation complete \n"; getchar();
     if (succ) {
         if (VERBOSE) {
-            cout << "All attached collision objects successfully processed!" << endl;
+            std::cout << "All attached collision objects successfully processed!" << '\n';
         }
     }
     response.success = succ;
 
     if (VERBOSE) {
-        cout << "-------------- " << __FUNCTION__ << " END ---------------" << endl;
+        std::cout << "-------------- " << __FUNCTION__ << " END ---------------" << '\n';
     }
-}
 
-Eigen::Affine3d Planner::ComputeFK(vector<double> const & joints) {
+    return true;
+}
+*/
+
+Eigen::Affine3d Planner::ComputeFK(std::vector<double> const & joints) {
     return rm_->computeFK(joints);
 }
 
 bool Planner::ComputeIK(
   Eigen::Affine3d const & pose,
-  vector<double> & solution,
-  vector<double> const & seed_joints,
+  std::vector<double> & solution,
+  std::vector<double> const & seed_joints,
   int num_retrials
 ) {
     bool success = rm_->computeIK(pose, seed_joints, solution, smpl::ik_option::UNRESTRICTED);
     int retry_count = 0;
     while ((!success) && (retry_count < num_retrials)) {
-        vector<double> seed;
+        std::vector<double> seed;
         for (int jidx = 0; jidx < 7; ++jidx) {
-            seed.push_back(2 * M_PI * Pillar::common::RandomGenerator::drand());
+            seed.push_back(2 * M_PI * rand_r(reinterpret_cast<unsigned *>(&jidx)));
         }
 
         success = rm_->computeIK(pose, seed, solution, smpl::ik_option::UNRESTRICTED);
@@ -865,7 +860,7 @@ bool Planner::CheckStartState(
                 start_state_.joint_state.position[i] = start_state_joints[6];
             }
         } else if (cc_.robotCollisionModel()->name() == "pr2") {
-            if (cfg_["arm"] == 'r') {
+            if (robot_config_.group_name == "right_arm") {
                 if (start_state_.joint_state.name[i] == "r_shoulder_pan_joint") {
                     start_state_.joint_state.position[i] = start_state_joints[0];
                 }
@@ -893,7 +888,7 @@ bool Planner::CheckStartState(
                 if (start_state_.joint_state.name[i] == "r_wrist_roll_joint") {
                     start_state_.joint_state.position[i] = start_state_joints[6];
                 }
-            } else if (cfg_["arm"] == 'l') {
+            } else if (robot_config_.group_name == "left_arm") {
                 if (start_state_.joint_state.name[i] == "l_shoulder_pan_joint") {
                     start_state_.joint_state.position[i] = start_state_joints[0];
                 }
@@ -921,9 +916,8 @@ bool Planner::CheckStartState(
                 if (start_state_.joint_state.name[i] == "l_wrist_roll_joint") {
                     start_state_.joint_state.position[i] = start_state_joints[6];
                 }
-
             } else {
-                throw runtime_error("Arm not indetified in planner");
+                throw std::runtime_error("Arm not indetified in planner");
             }
         }
     }
@@ -954,7 +948,7 @@ bool Planner::CheckStartState(
         return false;
     }
 
-    // planner_interface_ = make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, &grid_);
+    // planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, &grid_);
     // if (!planner_interface_->init(planner_params_))
     // {
     //     ROS_ERROR("Failed to initialize Planner Interface");
@@ -971,7 +965,7 @@ bool Planner::CheckStartState(
     req.max_velocity_scaling_factor = 1.0;
     req.num_planning_attempts = 1;
 
-    string algo = (cfg_["algorithm"] == 0) ? "arastar" : "epase";
+    std::string const algo = (cfg_["algorithm"] == 0) ? "arastar" : "epase";
 
     req.planner_id = algo + ".bfs.manip";
     req.start_state = start_state_;
@@ -1000,20 +994,40 @@ void Planner::VisualizeCollisionWorld() {
     }
 }
 
+
+ros::NodeHandle & Planner::GetNh() {
+    return nh_;
+}
+
+ros::NodeHandle & Planner::GetPh() {
+    return ph_;
+}
+
+std::string Planner::GetRobot() {
+    return robot_;
+}
+
+std::unordered_map<std::string, double> Planner::GetConfig() {
+    return cfg_;
+}
+
 bool Planner::requestIKCallback(
   sym_plan_msgs::RequestIK::Request & request,
   sym_plan_msgs::RequestIK::Response & response
 ) {
-    vector<double> seed_joint_states(7, 0);
-    vector<double> solution;
+    std::vector<double> const seed_joint_states(7, 0);
+    std::vector<double> solution;
     Eigen::Transform<double, 3, Eigen::Affine> ee_pose;
-    Eigen::AngleAxisd rollAngle(request.orientation[0], Eigen::Vector3d::UnitX());
-    Eigen::AngleAxisd pitchAngle(request.orientation[1], Eigen::Vector3d::UnitY());
-    Eigen::AngleAxisd yawAngle(request.orientation[2], Eigen::Vector3d::UnitZ());
+    Eigen::AngleAxisd const rollAngle(request.orientation[0], Eigen::Vector3d::UnitX());
+    Eigen::AngleAxisd const pitchAngle(request.orientation[1], Eigen::Vector3d::UnitY());
+    Eigen::AngleAxisd const yawAngle(request.orientation[2], Eigen::Vector3d::UnitZ());
     // ee_pose = yawAngle * pitchAngle * rollAngle;
-    // Eigen::AngleAxisd rollAngle(request.orientation[0], Eigen::Vector3d::UnitZ());
-    // Eigen::AngleAxisd yawAngle(request.orientation[1], Eigen::Vector3d::UnitY());
-    // Eigen::AngleAxisd pitchAngle(request.orientation[2], Eigen::Vector3d::UnitX());
+    // Eigen::AngleAxisd rollAngle(request.orientation[0],
+    // Eigen::Vector3d::UnitZ()); Eigen::AngleAxisd
+    // yawAngle(request.orientation[1],
+    // Eigen::Vector3d::UnitY()); Eigen::AngleAxisd
+    // pitchAngle(request.orientation[2],
+    // Eigen::Vector3d::UnitX());
 
     ee_pose = rollAngle * yawAngle * pitchAngle;
 
@@ -1021,8 +1035,12 @@ bool Planner::requestIKCallback(
       Eigen::Vector3d(request.position[0], request.position[1], request.position[2])
     );
 
-    bool success =
-      rm_->computeIK(ee_pose, seed_joint_states, solution, smpl::ik_option::UNRESTRICTED);
+    bool const success = rm_->computeIK(
+      ee_pose,
+      seed_joint_states,
+      solution,
+      smpl::ik_option::UNRESTRICTED
+    );
     response.success = success;
     response.joints = solution;
     if (!response.success) {
@@ -1032,7 +1050,7 @@ bool Planner::requestIKCallback(
     return true;
 }
 
-bool Planner::setupRobotModel(string const & urdf, RobotModelConfig const & config) {
+bool Planner::setupRobotModel(std::string const & urdf, RobotModelConfig const & config) {
     if (config.kinematics_frame.empty() || config.chain_tip_link.empty()) {
         ROS_ERROR(
           "Failed to retrieve param 'kinematics_frame' or 'chain_tip_link' from the param server"
@@ -1043,31 +1061,33 @@ bool Planner::setupRobotModel(string const & urdf, RobotModelConfig const & conf
     if (VERBOSE) {
         ROS_INFO("Construct Generic KDL Robot Model");
     }
-    rm_ = make_shared<smpl::KDLRobotModel>();
+    rm_ = std::make_shared<smpl::KDLRobotModel>();
 
-    // To handle smpl bug where IK does not work without one call to FK
+    // To handle smpl bug where IK does not work without one call
+    // to FK
 
     if (!rm_->init(urdf, config.kinematics_frame, config.chain_tip_link, num_threads_)) {
         ROS_ERROR("Failed to initialize robot model.");
         return false;
     }
 
-    vector<double> joint_states =
+    std::vector<double> const joint_states =
       {0.45274857, 0.58038735, -0.11977164, -1.9721714, 0.13661714, 2.5460937, 1.040775};
 
     for (int tidx = 0; tidx < num_threads_; ++tidx) {
         auto fk_solution = rm_->computeFK(joint_states, tidx);
     }
 
-    // vector<double> solution;
+    // std::vector<double> solution;
 
-    // bool success = rm_->computeIK(fk_solution, joint_states, solution,
-    // smpl::ik_option::UNRESTRICTED); auto ea = fk_solution.rotation().eulerAngles(0,1,2);
-    // std::cout << "Euler from quaternion in roll, pitch, yaw"<< std::endl << ea << std::endl;
-    // std::cout << "pose " << fk_solution.translation() << endl;
+    // bool success = rm_->computeIK(fk_solution, joint_states,
+    // solution, smpl::ik_option::UNRESTRICTED); auto ea =
+    // fk_solution.rotation().eulerAngles(0,1,2); std::cout <<
+    // "Euler from quaternion in roll, pitch, yaw"<< '\n' <<
+    // ea << '\n'; std::cout << "pose " <<
+    // fk_solution.translation() << '\n';
     return true;
 }
-
 
 bool Planner::readPlannerConfig(ros::NodeHandle const & nh, PlannerConfig & config) {
     if (!nh.getParam("discretization", config.discretization)) {
@@ -1129,15 +1149,15 @@ bool Planner::readRobotModelConfig(ros::NodeHandle const & nh, RobotModelConfig 
         return false;
     }
 
-    string planning_joint_list;
+    std::string planning_joint_list;
     if (!nh.getParam("planning_joints", planning_joint_list)) {
         ROS_ERROR("Failed to read 'planning_joints' from the param server");
         return false;
     }
 
-    stringstream joint_name_stream(planning_joint_list);
+    std::stringstream joint_name_stream(planning_joint_list);
     while (joint_name_stream.good() && !joint_name_stream.eof()) {
-        string jname;
+        std::string jname;
         joint_name_stream >> jname;
         if (jname.empty()) {
             continue;
@@ -1164,7 +1184,7 @@ bool Planner::readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotS
 
         if (xlist.size() > 0) {
             for (int i = 0; i < xlist.size(); ++i) {
-                state.joint_state.name.push_back(string(xlist[i]["name"]));
+                state.joint_state.name.push_back(std::string(xlist[i]["name"]));
 
                 if (xlist[i]["position"].getType() == XmlRpc::XmlRpcValue::TypeDouble) {
                     state.joint_state.position.push_back(double(xlist[i]["position"]));
@@ -1193,7 +1213,7 @@ bool Planner::readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotS
                 multi_dof_joint_state.joint_names.resize(xlist.size());
                 multi_dof_joint_state.transforms.resize(xlist.size());
                 for (int i = 0; i < xlist.size(); ++i) {
-                    multi_dof_joint_state.joint_names[i] = string(xlist[i]["joint_name"]);
+                    multi_dof_joint_state.joint_names[i] = std::string(xlist[i]["joint_name"]);
 
                     Eigen::Quaterniond q;
                     smpl::angles::from_euler_zyx(
@@ -1233,10 +1253,10 @@ bool Planner::readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotS
 }
 
 void Planner::fillGoalConstraint(
-  vector<double> const & pose,
-  string frame_id,
+  std::vector<double> const & pose,
+  std::string const & frame_id,
   moveit_msgs::Constraints & goals,
-  string const & goal_type
+  std::string const & goal_type
 ) {
     if (goal_type == "pose") {
         if (pose.size() < 6) {
@@ -1249,22 +1269,27 @@ void Planner::fillGoalConstraint(
 
         goals.position_constraints[0].constraint_region.primitives.resize(1);
         goals.position_constraints[0].constraint_region.primitive_poses.resize(1);
-        goals.position_constraints[0].constraint_region.primitives[0].type =
-          shape_msgs::SolidPrimitive::BOX;
-        goals.position_constraints[0].constraint_region.primitive_poses[0].position.x =
-          pose[0];
-        goals.position_constraints[0].constraint_region.primitive_poses[0].position.y =
-          pose[1];
-        goals.position_constraints[0].constraint_region.primitive_poses[0].position.z =
-          pose[2];
+        goals.position_constraints[0]
+          .constraint_region.primitives[0]
+          .type = shape_msgs::SolidPrimitive::BOX;
+        goals.position_constraints[0]
+          .constraint_region.primitive_poses[0]
+          .position.x = pose[0];
+        goals.position_constraints[0]
+          .constraint_region.primitive_poses[0]
+          .position.y = pose[1];
+        goals.position_constraints[0]
+          .constraint_region.primitive_poses[0]
+          .position.z = pose[2];
 
         Eigen::Quaterniond q;
         smpl::angles::from_euler_zyx(pose[5], pose[4], pose[3], q);
         tf::quaternionEigenToMsg(q, goals.orientation_constraints[0].orientation);
 
         geometry_msgs::Pose p;
-        p.position =
-          goals.position_constraints[0].constraint_region.primitive_poses[0].position;
+        p.position = goals.position_constraints[0]
+                       .constraint_region.primitive_poses[0]
+                       .position;
         p.orientation = goals.orientation_constraints[0].orientation;
 
         if (VERBOSE) {
@@ -1295,15 +1320,15 @@ void Planner::fillGoalConstraint(
             goals.joint_constraints[idx] = jc;
         }
     } else {
-        throw runtime_error("Goal type not identified!");
+        throw std::runtime_error("Goal type not identified!");
     }
 }
 
 auto Planner::getCollisionCube(
   geometry_msgs::Pose const & pose,
-  vector<double> & dims,
-  string const & frame_id,
-  string const & id
+  std::vector<double> & dims,
+  std::string const & frame_id,
+  std::string const & id
 ) -> moveit_msgs::CollisionObject {
     moveit_msgs::CollisionObject object;
     object.id = id;
@@ -1323,13 +1348,13 @@ auto Planner::getCollisionCube(
     return object;
 }
 
-vector<moveit_msgs::CollisionObject> Planner::getCollisionCubes(
-  vector<vector<double>> & objects,
-  vector<string> & object_ids,
-  string const & frame_id
+std::vector<moveit_msgs::CollisionObject> Planner::getCollisionCubes(
+  std::vector<std::vector<double>> & objects,
+  std::vector<std::string> & object_ids,
+  std::string const & frame_id
 ) {
-    vector<moveit_msgs::CollisionObject> objs;
-    vector<double> dims(3, 0);
+    std::vector<moveit_msgs::CollisionObject> objs;
+    std::vector<double> dims(3, 0);
     geometry_msgs::Pose pose;
     pose.orientation.x = 0;
     pose.orientation.y = 0;
@@ -1356,13 +1381,13 @@ vector<moveit_msgs::CollisionObject> Planner::getCollisionCubes(
     return objs;
 }
 
-vector<moveit_msgs::CollisionObject>
-Planner::getCollisionObjects(string const & filename, string const & frame_id) {
+std::vector<moveit_msgs::CollisionObject>
+Planner::getCollisionObjects(std::string const & filename, std::string const & frame_id) {
     char sTemp[1024];
     int num_obs = 0;
-    vector<string> object_ids;
-    vector<vector<double>> objects;
-    vector<moveit_msgs::CollisionObject> objs;
+    std::vector<std::string> object_ids;
+    std::vector<std::vector<double>> objects;
+    std::vector<moveit_msgs::CollisionObject> objs;
 
     FILE * fCfg = fopen(filename.c_str(), "r");
 
@@ -1378,7 +1403,7 @@ Planner::getCollisionObjects(string const & filename, string const & frame_id) {
         printf("Parsed string has length < 1.\n");
     }
 
-    num_obs = atoi(sTemp);
+    num_obs = std::stoi(sTemp, nullptr);
 
     if (VERBOSE) {
         ROS_INFO("%i objects in file", num_obs);
@@ -1399,7 +1424,7 @@ Planner::getCollisionObjects(string const & filename, string const & frame_id) {
                 printf("Parsed string has length < 1.\n");
             }
             if (!feof(fCfg) && strlen(sTemp) != 0) {
-                objects[i][j] = atof(sTemp);
+                objects[i][j] = std::strtod(sTemp, nullptr);
             }
         }
     }

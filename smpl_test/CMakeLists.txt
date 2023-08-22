@@ -21,7 +21,8 @@ find_package(catkin
         sbpl_collision_checking
         sbpl_kdl_robot_model
         smpl_ompl_interface
-        visualization_msgs)
+        visualization_msgs
+        sym_plan_msgs)
 
 find_package(orocos_kdl REQUIRED)
 find_package(ompl REQUIRED)
@@ -45,7 +46,10 @@ target_link_libraries(callPlannerEpase ${catkin_LIBRARIES} smpl::smpl)
 add_executable(callPlannerArastar src/call_planner_arastar.cpp src/collision_space_scene_multithread.cpp)
 target_link_libraries(callPlannerArastar ${catkin_LIBRARIES} smpl::smpl)
 
-add_executable(callPlannerFetch src/call_planner_fetch.cpp src/collision_space_scene_multithread.cpp src/planner.cpp)
+add_executable(plannerNode src/planner_node.cpp src/planner.cpp src/collision_space_scene_multithread.cpp)
+target_link_libraries(plannerNode ${catkin_LIBRARIES} smpl::smpl)
+
+add_executable(callPlannerFetch src/call_planner_fetch.cpp)
 target_link_libraries(callPlannerFetch ${catkin_LIBRARIES} smpl::smpl)
 #
 add_executable(evaluateEpase src/evaluate_epase.cpp src/collision_space_scene_multithread.cpp)

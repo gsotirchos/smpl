@@ -1,11 +1,22 @@
-#ifndef PLANNER_HPP
-#define PLANNER_HPP
-#include <eigen_conversions/eigen_msg.h>
-#include <leatherman/print.h>
-#include <leatherman/utils.h>
+#ifndef PLANNER_H
+#define PLANNER_H
+
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include <moveit_msgs/GetMotionPlan.h>
 #include <moveit_msgs/PlanningScene.h>
 #include <ros/ros.h>
+#include <sym_plan_msgs/ProcessCollisionObject.h>
+#include <sym_plan_msgs/RequestIK.h>
+#include <sym_plan_msgs/RequestPlan.h>
+#include <visualization_msgs/MarkerArray.h>
+// #include <sym_plan_msgs/ProcessAttachedCollisionObject.h>
+
+#include <eigen_conversions/eigen_msg.h>
+#include <leatherman/print.h>
+#include <leatherman/utils.h>
 #include <sbpl_kdl_robot_model/kdl_robot_model.h>
 #include <smpl/angles.h>
 #include <smpl/debug/visualizer_ros.h>
@@ -13,20 +24,8 @@
 #include <smpl/distance_map/euclid_distance_map.h>
 #include <smpl/ros/planner_interface.h>
 #include <smpl/ros/propagation_distance_field.h>
-#include <string>
-#include <unordered_map>
-#include <vector>
-#include <visualization_msgs/MarkerArray.h>
-// #include <sym_plan/collision_space_scene.hpp>
-// #include <sbpl_collision_checking/collision_space.h>
-// #include <sym_plan/collision_space_multithread.hpp>
-// #include <sym_plan/collision_space_scene_multithread.hpp>
-#include "collision_space_scene_multithread.h"
 
-// #include <sym_plan_msgs/ProcessAttachedCollisionObject.h>
-// #include <sym_plan_msgs/ProcessCollisionObject.h>
-// #include <sym_plan_msgs/RequestIK.h>
-// #include <sym_plan_msgs/RequestPlan.h>
+#include "collision_space_scene_multithread.h"
 
 namespace symplan {
     struct RobotModelConfig {
@@ -55,10 +54,7 @@ namespace symplan {
         Planner(
           std::string const & robot,
           ros::NodeHandle const & nh,
-          ros::NodeHandle const & ph,
-          std::string const & planner_service_name,
-          std::string const & collision_object_service_name,
-          std::string const & request_ik_service_name
+          ros::NodeHandle const & ph
         );
         Planner(
           std::string const & robot,
@@ -66,8 +62,8 @@ namespace symplan {
           ros::NodeHandle const & ph,
           std::unordered_map<std::string, double> cfg
         );
-
         ~Planner();
+
         bool Init();
         void RunPlannerServiceServer();
         bool RequestPlanCallback(
@@ -78,10 +74,10 @@ namespace symplan {
           sym_plan_msgs::ProcessCollisionObject::Request & request,
           sym_plan_msgs::ProcessCollisionObject::Response & response
         );
-        bool ProcessAttachedCollisionObjectCallback(
-          sym_plan_msgs::ProcessAttachedCollisionObject::Request & request,
-          sym_plan_msgs::ProcessAttachedCollisionObject::Response & response
-        );
+        // bool ProcessAttachedCollisionObjectCallback(
+        //   sym_plan_msgs::ProcessAttachedCollisionObject::Request & request,
+        //   sym_plan_msgs::ProcessAttachedCollisionObject::Response & response
+        //);
         Eigen::Affine3d ComputeFK(std::vector<double> const & joints);
         bool ComputeIK(
           Eigen::Affine3d const & pose,
@@ -95,19 +91,14 @@ namespace symplan {
           std::string const & goal_type = "pose"
         );
         void VisualizeCollisionWorld();
-        ros::NodeHandle & GetNh() {
-            return nh_;
-        }
-        ros::NodeHandle & GetPh() {
-            return ph_;
-        }
-        std::string GetRobot() {
-            return robot_;
-        };
-        std::unordered_map<std::string, double> GetConfig() {
-            return cfg_;
-        }
-        std::shared_ptr<smpl::KDLRobotModel> rm_;
+        ros::NodeHandle & GetNh();
+        ros::NodeHandle & GetPh();
+        std::string GetRobot();
+        std::unordered_map<std::string, double> GetConfig();
+
+        constexpr static auto planner_service_name = "planner_service";
+        constexpr static auto collision_object_service_name = "collision_object_service";
+        constexpr static auto request_ik_service_name = "request_ik_service";
 
       private:
         bool requestIKCallback(
@@ -120,7 +111,7 @@ namespace symplan {
         bool readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotState & state);
         void fillGoalConstraint(
           std::vector<double> const & pose,
-          std::string frame_id,
+          std::string const & frame_id,
           moveit_msgs::Constraints & goals,
           std::string const & goal_type
         );
@@ -142,6 +133,7 @@ namespace symplan {
         std::unordered_map<std::string, double> cfg_;
         int num_threads_;
 
+        std::shared_ptr<smpl::KDLRobotModel> rm_;
         std::string planning_frame_;
         std::vector<std::string> gripper_links_;
         RobotModelConfig robot_config_;
@@ -158,13 +150,12 @@ namespace symplan {
 
         moveit_msgs::RobotState start_state_;
         std::shared_ptr<smpl::PlannerInterface> planner_interface_;
-        smpl::collision::CollisionSpaceMultithread cc_;
         CollisionSpaceSceneMultithread cs_scene_;
+        smpl::collision::CollisionSpaceMultithread cc_;
         smpl::OccupancyGrid grid_;
         std::vector<smpl::OccupancyGrid *> grid_vec_;
         std::string attached_co_id_;
     };
-
 }  // namespace symplan
 
 #endif
