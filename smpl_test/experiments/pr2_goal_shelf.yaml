@@ -1,7 +1,7 @@
 initial_configuration:
   joint_state:
     - { name: torso_lift_joint,       position: 0.16825 }
-    - { name: r_shoulder_pan_joint,   position: 0 }
+    - { name: r_shoulder_pan_joint,   position: 0.0 }
     - { name: r_shoulder_lift_joint,  position: 0.0 }
     - { name: r_upper_arm_roll_joint, position: 0.0 }
     - { name: r_elbow_flex_joint,     position: -1.1356 } #-0.2 }
