@@ -17,47 +17,25 @@ constexpr bool VERBOSE = true;
 
 using namespace symplan;
 
+
+// Public
+
 Planner::Planner(
   std::string const & robot,
   ros::NodeHandle const & nh,
   ros::NodeHandle const & ph
 ) :
-  Planner(robot, nh, ph, std::unordered_map<std::string, double>()) {
-    // Advertise service servers
-    planner_service_server_ = nh_.advertiseService(
-      planner_service_name,
-      &Planner::RequestPlanCallback,
-      this
-    );
-    collision_object_service_server_ = nh_.advertiseService(
-      collision_object_service_name,
-      &Planner::ProcessCollisionObjectCallback,
-      this
-    );
-    request_ik_service_server_ = nh_.advertiseService(
-      request_ik_service_name,
-      &Planner::requestIKCallback,
-      this
-    );
-}
-
-Planner::Planner(
-  std::string const & robot,
-  ros::NodeHandle const & nh,
-  ros::NodeHandle const & ph,
-  std::unordered_map<std::string, double> cfg
-) :
   robot_(robot),
   nh_(nh),
-  ph_(ph),
-  cfg_(std::move(cfg)) {
+  ph_(ph) {
     if (VERBOSE) {
         ROS_INFO("Initialize visualizer");
     }
-
     smpl::VisualizerROS * visualizer_ = new smpl::VisualizerROS(nh_, 100);
     smpl::viz::set_visualizer(visualizer_);
+
     attached_co_id_.clear();
+    cfg_ = std::unordered_map<std::string, double>();
 }
 
 Planner::~Planner() {
@@ -65,6 +43,7 @@ Planner::~Planner() {
 }
 
 bool Planner::Init() {
+    // TODO
     num_threads_ = (cfg_["algorithm"] == 0) ? 1 : static_cast<int>(cfg_["num_threads"]);
 
     /////////////////
@@ -225,7 +204,8 @@ bool Planner::Init() {
     }
 
     // This does the same thing as turning the frames through config
-    // cc_.setWorldToModelTransform(Eigen::Affine3d::Identity());  // TODO: might be necessary
+    // TODO: ^ ??? and do I need this here?
+    cc_.setWorldToModelTransform(0, Eigen::Affine3d::Identity());
 
     /////////////////
     // Setup Scene //
@@ -269,13 +249,7 @@ bool Planner::Init() {
     // std::vector<double> us = {0, -0.78539816, 0, -2.35619449, 0, 1.57079633, 0.78539816};
     // cc_.updateState(us);
 
-
-    // TODO: this was comented out... Do I need it uncommented here?
     // SV_SHOW_INFO(grid_.getDistanceFieldVisualization(0.2));
-    // SV_SHOW_INFO(cc_.getCollisionRobotVisualization());
-    // SV_SHOW_INFO(cc_.getCollisionWorldVisualization());
-    // SV_SHOW_INFO(cc_.getOccupiedVoxelsVisualization());
-    //====================================================================================
 
     ///////////////////
     // Planner Setup //
@@ -311,7 +285,7 @@ bool Planner::Init() {
     planner_params_.addParam("improve_solution", false);
     planner_params_.addParam("bound_expansions", true);
     planner_params_.addParam("repair_time", 1.0);
-    planner_params_.addParam("bfs_inflation_radius", 0.02);
+    planner_params_.addParam("bfs_inlation_radius", 0.02);
     planner_params_.addParam("bfs_cost_per_cell", 100);
 
     //== TODO: This too exists in the planning callback; Do I need it here too? ==========
@@ -322,6 +296,23 @@ bool Planner::Init() {
         return false;
     }
     //====================================================================================
+
+    // Advertise service servers
+    planner_service_server_ = nh_.advertiseService(
+      planner_service_name,
+      &Planner::RequestPlanCallback,
+      this
+    );
+    collision_object_service_server_ = nh_.advertiseService(
+      collision_object_service_name,
+      &Planner::ProcessCollisionObjectCallback,
+      this
+    );
+    request_ik_service_server_ = nh_.advertiseService(
+      request_ik_service_name,
+      &Planner::requestIKCallback,
+      this
+    );
 
     return true;
 }
@@ -400,17 +391,10 @@ bool Planner::RequestPlanCallback(
     if (VERBOSE) {
         ROS_INFO("Calling solve...");
     }
+
     moveit_msgs::PlanningScene planning_scene;
     planning_scene.robot_state = start_state_;
-
     auto plan_found = planner_interface_->solve(planning_scene, req, res);
-    auto planning_stats = planner_interface_->getPlannerStats();
-
-    response.cost = planning_stats["solution cost"];
-    response.time = planning_stats["time"];
-    response.state_expansions = planning_stats["state_expansions"];
-    response.edge_expansions = planning_stats["edge_expansions"];
-
     if ((!plan_found) || (res.trajectory.joint_trajectory.points.size() == 0)) {
         ROS_ERROR("Failed to plan.");
         response.success = false;
@@ -418,18 +402,25 @@ bool Planner::RequestPlanCallback(
         return true;
     }
 
+    auto planning_stats = planner_interface_->getPlannerStats();
+    response.cost = planning_stats["solution cost"];
+    response.time = planning_stats["time"];
+    response.state_expansions = planning_stats["state_expansions"];
+    response.edge_expansions = planning_stats["edge_expansions"];
+
     if (VERBOSE) {
         ROS_INFO("Planning statistics");
         for (auto & entry : planning_stats) {
-            if (VERBOSE) {
-                ROS_INFO("    %s: %0.3f", entry.first.c_str(), entry.second);
-            }
+            ROS_INFO("    %s: %0.3f", entry.first.c_str(), entry.second);
         }
     }
 
     // Send service reponse
     response.success = true;
     response.plan = res;
+
+    VisualizeCollisionWorld();
+    VisualizePath(res.trajectory);
 
     return true;
 }
@@ -714,20 +705,37 @@ bool Planner::CheckStartState(
 }
 
 void Planner::VisualizeCollisionWorld() {
-    int i = 0;
-    while (ros::ok() && (i < 1)) {
-        auto markers = cc_.getCollisionWorldVisualization(0);
-        auto markers_robot = cc_.getCollisionRobotVisualization(0);
-        auto occupied_voxels = cc_.getOccupiedVoxelsVisualization();
-        // for (auto& m : markers.markers)
-        // {
+    while (!ros::ok()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    auto bounding_box = cc_.grid()->getBoundingBoxVisualization();
+    auto markers = cc_.getCollisionWorldVisualization(0);
+    auto occupied_voxels = cc_.getOccupiedVoxelsVisualization();
+    SV_SHOW_INFO(bounding_box);
+    SV_SHOW_INFO(markers);
+    SV_SHOW_INFO(occupied_voxels);
+}
+
+void Planner::VisualizePath(moveit_msgs::RobotTrajectory trajectory, bool repeat) {
+    if (VERBOSE) {
+        ROS_INFO("Animate path");
+    }
+
+    int point_idx = 0;
+    while (ros::ok()) {
+        auto & point = trajectory.joint_trajectory.points[point_idx];
+        auto markers_robot = cc_.getCollisionRobotVisualization(0, point.positions);
+        // for (auto & m : markers.markers) {
         //     m.ns = "path_animation";
         // }
-        SV_SHOW_INFO(markers);
         SV_SHOW_INFO(markers_robot);
-        SV_SHOW_INFO(occupied_voxels);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        i += 1;
+        point_idx++;
+        point_idx %= static_cast<int>(trajectory.joint_trajectory.points.size());
+
+        if (!repeat) {
+            break;
+        }
     }
 }
 
@@ -747,6 +755,9 @@ std::string Planner::GetRobot() {
 std::unordered_map<std::string, double> Planner::GetConfig() {
     return cfg_;
 }
+
+
+// Private
 
 bool Planner::requestIKCallback(
   sym_plan_msgs::RequestIK::Request & request,
@@ -1113,7 +1124,7 @@ bool Planner::setPlanningAndCollisionReferenceState(moveit_msgs::RobotState & st
             return false;
         }
 
-        // cc_.setWorldToModelTransform(Eigen::Affine3d::Identity());  // TODO: might be necessary
+        cc_.setWorldToModelTransform(tidx, Eigen::Affine3d::Identity());  // TODO: might be necessary
     }
 
     return true;

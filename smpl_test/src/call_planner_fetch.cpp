@@ -1,5 +1,4 @@
 // standard includes
-#include <ros/service.h>
 // #include <stdlib.h>
 #include <string>
 // #include <thread>
@@ -7,6 +6,7 @@
 
 // system includes
 #include <ros/ros.h>
+#include <ros/service.h>
 // #include <sym_plan_msgs/ProcessAttachedCollisionObject.h>
 #include <sym_plan_msgs/ProcessCollisionObject.h>
 #include <sym_plan_msgs/RequestPlan.h>
@@ -19,14 +19,6 @@ int main(int argc, char * argv[]) {
     ros::NodeHandle nh;
     ros::NodeHandle const ph("~");
 
-    //////////////
-    // Planning //
-    //////////////
-
-    // Let server(s) set up
-    ros::service::waitForService(symplan::Planner::planner_service_name, ros::Duration(1.0));
-    ros::Duration(5.0).sleep();
-
     //== TODO: replace this with loading from yaml files ==================================
     sym_plan_msgs::RequestPlan planner_srv;
 
@@ -34,8 +26,8 @@ int main(int argc, char * argv[]) {
 
     planner_srv.request.start_state.joint_state
       .position = {0.0, 0.0, 0.0, -1.1356, 0.0, -1.05, 0.0};
-    planner_srv.request.start_state.attached_collision_objects =
-      std::vector<moveit_msgs::AttachedCollisionObject>{};
+    planner_srv.request.start_state
+      .attached_collision_objects = std::vector<moveit_msgs::AttachedCollisionObject>{};
 
     planner_srv.request.goal = {0.4, -0.2, 0.36, 0.0, 0.0, 0.0};
     //=====================================================================================
@@ -62,6 +54,10 @@ int main(int argc, char * argv[]) {
         */
     }  //========================================================
 
+    // Let server(s) set up
+    ros::service::waitForService(symplan::Planner::planner_service_name, ros::Duration(1.0));
+    ros::Duration(1.0).sleep();
+
     // plan
     auto planner_service_client = nh.serviceClient<sym_plan_msgs::RequestPlan>(
       symplan::Planner::planner_service_name
@@ -70,42 +66,6 @@ int main(int argc, char * argv[]) {
     if (!planner_service_client.call(planner_srv)) {
         ROS_ERROR("Failed when calling the planner service.");
     }
-
-    ///////////////////////////////////
-    // Visualizations and Statistics //
-    ///////////////////////////////////
-
-    // TODO: these are printed after requesting a plan(?)
-    // auto planning_stats = planner.getPlannerStats();
-    //
-    // ROS_INFO("Planning statistics");
-    // for (auto & entry : planning_stats) {
-    //    ROS_INFO("    %s: %0.3f", entry.first.c_str(),
-    //    entry.second);
-    //}
-
-    // TODO: maybe needs Planner::VisualizeCollisionWorld()
-    // ROS_INFO("Animate path");
-    //
-    // auto markers = cc.getCollisionWorldVisualization(0);
-    // auto occupied_voxels =
-    // cc.getOccupiedVoxelsVisualization();
-    // SV_SHOW_INFO(markers);
-    // SV_SHOW_INFO(occupied_voxels);
-    //
-    // size_t pidx = 0;
-    // while (ros::ok()) {
-    //    auto & point =
-    //    res.trajectory.joint_trajectory.points[pidx]; auto
-    //    markers_robot = cc.getCollisionRobotVisualization(0,
-    //    point.positions); for (auto & m : markers.markers) {
-    //        m.ns = "path_animation";
-    //    }
-    //    SV_SHOW_INFO(markers_robot);
-    //    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    //    pidx++;
-    //    pidx %= res.trajectory.joint_trajectory.points.size();
-    //}
 
     return 0;
 }

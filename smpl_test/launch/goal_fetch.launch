@@ -1,7 +1,7 @@
 <launch>
     <arg name="debug" default="false"/>
     <arg name="fullscreen" default="true"/>
-    <arg name="start_delay" default="3.0" />
+    <arg name="start_delay" default="5.0" />
     <arg name="rviz" default="true"/>
     <arg name="args" default=""/>
 

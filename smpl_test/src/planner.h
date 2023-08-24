@@ -57,12 +57,6 @@ namespace symplan {
           ros::NodeHandle const & nh,
           ros::NodeHandle const & ph
         );
-        Planner(
-          std::string const & robot,
-          ros::NodeHandle const & nh,
-          ros::NodeHandle const & ph,
-          std::unordered_map<std::string, double> cfg
-        );
         ~Planner();
 
         bool Init();
@@ -92,6 +86,7 @@ namespace symplan {
           std::string const & goal_type = "pose"
         );
         void VisualizeCollisionWorld();
+        void VisualizePath(moveit_msgs::RobotTrajectory trajectory, bool repeat = true);
         ros::NodeHandle & GetNh();
         ros::NodeHandle & GetPh();
         std::string GetRobot();
@@ -132,10 +127,6 @@ namespace symplan {
         std::vector<moveit_msgs::CollisionObject>
         getCollisionObjects(std::string const & filename, std::string const & frame_id);
 
-        std::string robot_;
-        std::unordered_map<std::string, double> cfg_;
-        int num_threads_;
-
         std::shared_ptr<smpl::KDLRobotModel> rm_;
         std::string planning_frame_;
         std::vector<std::string> gripper_links_;
@@ -144,12 +135,15 @@ namespace symplan {
         std::string robot_description_;
         smpl::PlanningParams planner_params_;
 
+        std::string robot_;
         ros::NodeHandle nh_;
         ros::NodeHandle ph_;
+        std::unordered_map<std::string, double> cfg_;
         smpl::VisualizerROS * visualizer_;
         ros::ServiceServer planner_service_server_;
         ros::ServiceServer collision_object_service_server_;
         ros::ServiceServer request_ik_service_server_;
+        int num_threads_;
 
         moveit_msgs::RobotState start_state_;
         std::shared_ptr<smpl::PlannerInterface> planner_interface_;
