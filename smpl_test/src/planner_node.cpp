@@ -5,7 +5,7 @@ int main(int argc, char * argv[]) {
     ros::NodeHandle const nh;
     ros::NodeHandle const ph("~");
 
-    auto const robot_name = "pr2";
+    auto const robot_name = "panda";  // TODO: use a rosparam
 
     symplan::Planner planner(robot_name, nh, ph);
 

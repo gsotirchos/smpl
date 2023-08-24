@@ -19,17 +19,37 @@ int main(int argc, char * argv[]) {
     ros::NodeHandle nh;
     ros::NodeHandle const ph("~");
 
-    //== TODO: replace this with loading from yaml files ==================================
+    //== TODO: load these from yaml files instead =========================================
     sym_plan_msgs::RequestPlan planner_srv;
 
     planner_srv.request.goal_type = "pose";
 
-    planner_srv.request.start_state.joint_state
-      .position = {0.0, 0.0, 0.0, -1.1356, 0.0, -1.05, 0.0};
+    // planner_srv.request.start_state.joint_state
+    //   .position = {0.0, 0.0, 0.0, -1.1356, 0.0, -1.05, 0.0};
+    planner_srv.request.start_state.joint_state.position = {
+      0.0,
+      -0.78539816,
+      0.0,
+      -2.35619449,
+      0.0,
+      1.57079633,
+      0.78539816,
+      0.04,
+      0.04,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    };
+
     planner_srv.request.start_state
       .attached_collision_objects = std::vector<moveit_msgs::AttachedCollisionObject>{};
 
-    planner_srv.request.goal = {0.4, -0.2, 0.36, 0.0, 0.0, 0.0};
+    // planner_srv.request.goal = {0.4, -0.2, 0.36, 0.0, 0.0, 0.0};
+    planner_srv.request.goal = {0.6, 0.0, 0.63, 0.0, 3.14, 0.0};
     //=====================================================================================
 
     {  //== TODO: process loaded collision objects ==============
@@ -58,7 +78,7 @@ int main(int argc, char * argv[]) {
     ros::service::waitForService(symplan::Planner::planner_service_name, ros::Duration(1.0));
     ros::Duration(1.0).sleep();
 
-    // plan
+    // Plan
     auto planner_service_client = nh.serviceClient<sym_plan_msgs::RequestPlan>(
       symplan::Planner::planner_service_name
     );

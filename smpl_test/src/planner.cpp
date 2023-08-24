@@ -4,8 +4,6 @@
 #include <thread>
 #include <vector>
 
-// #include <sym_plan/franka_allowed_collision_pairs.hpp>
-// #include <sym_plan/pr2_allowed_collision_pairs.hpp>
 #include "franka_allowed_collision_pairs.h"
 #include "pr2_allowed_collision_pairs.h"
 
@@ -103,7 +101,7 @@ bool Planner::Init() {
         df_origin_y = -1.0;
         df_origin_z = 0;
         max_distance = 1.8;
-    } else if (robot_ == "franka") {
+    } else if (robot_ == "panda") {
         df_size_x = 1.5;
         df_size_y = 1.5;
         df_size_z = 1.0;
@@ -186,7 +184,7 @@ bool Planner::Init() {
         }
 
         cc_.setAllowedCollisionMatrix(acm);
-    } else if (robot_ == "franka") {
+    } else if (robot_ == "panda") {
         gripper_links_.push_back("panda_hand");
         gripper_links_.push_back("panda_leftfinger");
         gripper_links_.push_back("panda_rightfinger");
@@ -297,6 +295,8 @@ bool Planner::Init() {
     }
     //====================================================================================
 
+    VisualizeCollisionWorld();
+
     // Advertise service servers
     planner_service_server_ = nh_.advertiseService(
       planner_service_name,
@@ -323,14 +323,6 @@ bool Planner::RequestPlanCallback(
 ) {
     if (request.goal_type.empty()) {
         request.goal_type = "pose";
-    }
-
-    if (VERBOSE) {
-        std::cout << "Robot state: ";
-        for (auto joint : request.start_state.joint_state.position) {
-            std::cout << joint << ", ";
-        }
-        std::cout << '\n';
     }
 
     // Set start state
@@ -419,7 +411,6 @@ bool Planner::RequestPlanCallback(
     response.success = true;
     response.plan = res;
 
-    VisualizeCollisionWorld();
     VisualizePath(res.trajectory);
 
     return true;
@@ -817,12 +808,12 @@ bool Planner::setupRobotModel(std::string const & urdf, RobotModelConfig const &
     }
 
     // To handle smpl bug where IK does not work without one call to FK
-    std::vector<double> const joint_states =
-      {0.45274857, 0.58038735, -0.11977164, -1.9721714, 0.13661714, 2.5460937, 1.040775};
-
-    for (int tidx = 0; tidx < num_threads_; ++tidx) {
-        auto fk_solution = rm_->computeFK(joint_states, tidx);
-    }
+    // std::vector<double> const joint_states =
+    //  {0.45274857, 0.58038735, -0.11977164, -1.9721714, 0.13661714, 2.5460937, 1.040775};
+    //
+    // for (int tidx = 0; tidx < num_threads_; ++tidx) {
+    //    auto fk_solution = rm_->computeFK(joint_states, tidx);
+    //}
 
     // std::vector<double> solution;
 
@@ -1001,94 +992,76 @@ bool Planner::readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotS
 
 bool Planner::setStartState(double const * state) {
     for (auto i = 0; i < start_state_.joint_state.name.size(); ++i) {
-        if (cc_.robotCollisionModel()->name() == "panda") {
-            if (start_state_.joint_state.name[i] == "panda_joint1") {
-                start_state_.joint_state.position[i] = state[0];
-            }
-
-            if (start_state_.joint_state.name[i] == "panda_joint2") {
-                start_state_.joint_state.position[i] = state[1];
-            }
-
-            if (start_state_.joint_state.name[i] == "panda_joint3") {
-                start_state_.joint_state.position[i] = state[2];
-            }
-
-            if (start_state_.joint_state.name[i] == "panda_joint4") {
-                start_state_.joint_state.position[i] = state[3];
-            }
-
-            if (start_state_.joint_state.name[i] == "panda_joint5") {
-                start_state_.joint_state.position[i] = state[4];
-            }
-
-            if (start_state_.joint_state.name[i] == "panda_joint6") {
-                start_state_.joint_state.position[i] = state[5];
-            }
-
-            if (start_state_.joint_state.name[i] == "panda_joint7") {
-                start_state_.joint_state.position[i] = state[6];
-            }
-        } else if (cc_.robotCollisionModel()->name() == "pr2") {
+        if (cc_.robotCollisionModel()->name() == "pr2") {
             if (robot_config_.group_name == "right_arm") {
                 if (start_state_.joint_state.name[i] == "r_shoulder_pan_joint") {
                     start_state_.joint_state.position[i] = state[0];
-                }
-
-                if (start_state_.joint_state.name[i] == "r_shoulder_lift_joint") {
+                } else if (start_state_.joint_state.name[i] == "r_shoulder_lift_joint") {
                     start_state_.joint_state.position[i] = state[1];
-                }
-
-                if (start_state_.joint_state.name[i] == "r_upper_arm_roll_joint") {
+                } else if (start_state_.joint_state.name[i] == "r_upper_arm_roll_joint") {
                     start_state_.joint_state.position[i] = state[2];
-                }
-
-                if (start_state_.joint_state.name[i] == "r_elbow_flex_joint") {
+                } else if (start_state_.joint_state.name[i] == "r_elbow_flex_joint") {
                     start_state_.joint_state.position[i] = state[3];
-                }
-
-                if (start_state_.joint_state.name[i] == "r_forearm_roll_joint") {
+                } else if (start_state_.joint_state.name[i] == "r_forearm_roll_joint") {
                     start_state_.joint_state.position[i] = state[4];
-                }
-
-                if (start_state_.joint_state.name[i] == "r_wrist_flex_joint") {
+                } else if (start_state_.joint_state.name[i] == "r_wrist_flex_joint") {
                     start_state_.joint_state.position[i] = state[5];
-                }
-
-                if (start_state_.joint_state.name[i] == "r_wrist_roll_joint") {
+                } else if (start_state_.joint_state.name[i] == "r_wrist_roll_joint") {
                     start_state_.joint_state.position[i] = state[6];
                 }
             } else if (robot_config_.group_name == "left_arm") {
                 if (start_state_.joint_state.name[i] == "l_shoulder_pan_joint") {
                     start_state_.joint_state.position[i] = state[0];
-                }
-
-                if (start_state_.joint_state.name[i] == "l_shoulder_lift_joint") {
+                } else if (start_state_.joint_state.name[i] == "l_shoulder_lift_joint") {
                     start_state_.joint_state.position[i] = state[1];
-                }
-
-                if (start_state_.joint_state.name[i] == "l_upper_arm_roll_joint") {
+                } else if (start_state_.joint_state.name[i] == "l_upper_arm_roll_joint") {
                     start_state_.joint_state.position[i] = state[2];
-                }
-
-                if (start_state_.joint_state.name[i] == "l_elbow_flex_joint") {
+                } else if (start_state_.joint_state.name[i] == "l_elbow_flex_joint") {
                     start_state_.joint_state.position[i] = state[3];
-                }
-
-                if (start_state_.joint_state.name[i] == "l_forearm_roll_joint") {
+                } else if (start_state_.joint_state.name[i] == "l_forearm_roll_joint") {
                     start_state_.joint_state.position[i] = state[4];
-                }
-
-                if (start_state_.joint_state.name[i] == "l_wrist_flex_joint") {
+                } else if (start_state_.joint_state.name[i] == "l_wrist_flex_joint") {
                     start_state_.joint_state.position[i] = state[5];
-                }
-
-                if (start_state_.joint_state.name[i] == "l_wrist_roll_joint") {
+                } else if (start_state_.joint_state.name[i] == "l_wrist_roll_joint") {
                     start_state_.joint_state.position[i] = state[6];
                 }
             } else {
                 ROS_ERROR("Arm not specified in planner");
                 return false;
+            }
+        } else if (cc_.robotCollisionModel()->name() == "panda") {
+            if (start_state_.joint_state.name[i] == "panda_joint1") {
+                start_state_.joint_state.position[i] = state[0];
+            } else if (start_state_.joint_state.name[i] == "panda_joint2") {
+                start_state_.joint_state.position[i] = state[1];
+            } else if (start_state_.joint_state.name[i] == "panda_joint3") {
+                start_state_.joint_state.position[i] = state[2];
+            } else if (start_state_.joint_state.name[i] == "panda_joint4") {
+                start_state_.joint_state.position[i] = state[3];
+            } else if (start_state_.joint_state.name[i] == "panda_joint5") {
+                start_state_.joint_state.position[i] = state[4];
+            } else if (start_state_.joint_state.name[i] == "panda_joint6") {
+                start_state_.joint_state.position[i] = state[5];
+            } else if (start_state_.joint_state.name[i] == "panda_joint7") {
+                start_state_.joint_state.position[i] = state[6];
+            } else if (start_state_.joint_state.name[i] == "panda_finger_joint1") {
+                start_state_.joint_state.position[i] = state[7];
+            } else if (start_state_.joint_state.name[i] == "panda_finger_joint2") {
+                start_state_.joint_state.position[i] = state[8];
+            } else if (start_state_.joint_state.name[i] == "map/trans_x") {
+                start_state_.joint_state.position[i] = state[9];
+            } else if (start_state_.joint_state.name[i] == "map/trans_y") {
+                start_state_.joint_state.position[i] = state[10];
+            } else if (start_state_.joint_state.name[i] == "map/trans_z") {
+                start_state_.joint_state.position[i] = state[11];
+            } else if (start_state_.joint_state.name[i] == "map/rot_x") {
+                start_state_.joint_state.position[i] = state[12];
+            } else if (start_state_.joint_state.name[i] == "map/rot_y") {
+                start_state_.joint_state.position[i] = state[13];
+            } else if (start_state_.joint_state.name[i] == "map/rot_z") {
+                start_state_.joint_state.position[i] = state[14];
+            } else if (start_state_.joint_state.name[i] == "map/rot_w") {
+                start_state_.joint_state.position[i] = state[15];
             }
         }
     }
@@ -1113,18 +1086,19 @@ bool Planner::setPlanningAndCollisionReferenceState(moveit_msgs::RobotState & st
               state.joint_state.position[i]
             );
         }
-        SetVariablePosition(&reference_state, var, start_state_.joint_state.position[i]);
+        SetVariablePosition(&reference_state, var, state.joint_state.position[i]);
     }
     SetReferenceState(rm_.get(), GetVariablePositions(&reference_state));
 
     // Set reference state in the collision model...
     for (auto tidx = 0; tidx < num_threads_; ++tidx) {
-        if (!cs_scene_.SetRobotState(tidx, start_state_)) {
+        if (!cs_scene_.SetRobotState(tidx, state)) {
             ROS_ERROR("Failed to set start state on Collision Space Scene");
             return false;
         }
 
-        cc_.setWorldToModelTransform(tidx, Eigen::Affine3d::Identity());  // TODO: might be necessary
+        // TODO: might have to modify this
+        cc_.setWorldToModelTransform(tidx, Eigen::Affine3d::Identity());
     }
 
     return true;
