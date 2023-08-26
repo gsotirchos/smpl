@@ -22,4 +22,5 @@
     <depend>sym_plan_msgs</depend>
 
     <exec_depend>pr2_description</exec_depend>
+    <exec_depend>franka_description</exec_depend>
 </package>
