@@ -357,7 +357,7 @@ bool Planner::RequestPlanCallback(
     req.max_velocity_scaling_factor = 1.0;
     req.num_planning_attempts = 1;
 
-    std::string const algo = (cfg_["algorithm"] == 0) ? "arastar" : "epase";
+    std::string const algo = (cfg_["algorithm"] == 1) ? "arastar" : "epase";
     if (request.goal_type == "pose") {
         req.planner_id = algo + ".bfs.manip";
     } else if (request.goal_type == "joints") {
@@ -684,7 +684,7 @@ bool Planner::CheckStartState(
     req.max_velocity_scaling_factor = 1.0;
     req.num_planning_attempts = 1;
 
-    std::string const algo = (cfg_["algorithm"] == 0) ? "arastar" : "epase";
+    std::string const algo = (cfg_["algorithm"] == 1) ? "arastar" : "epase";
 
     req.planner_id = algo + ".bfs.manip";
     req.start_state = start_state_;
