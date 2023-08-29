@@ -22,7 +22,8 @@ find_package(catkin
         sbpl_kdl_robot_model
         smpl_ompl_interface
         visualization_msgs
-        sym_plan_msgs)
+        sym_plan_msgs
+        robowflex_library)
 
 find_package(orocos_kdl REQUIRED)
 find_package(ompl REQUIRED)

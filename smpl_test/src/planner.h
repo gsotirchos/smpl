@@ -27,6 +27,7 @@
 #include <visualization_msgs/MarkerArray.h>
 
 #include "collision_space_scene_multithread.h"
+#include <robowflex_library/io.h>
 
 namespace symplan {
     struct RobotModelConfig {
@@ -53,13 +54,12 @@ namespace symplan {
     class Planner {
       public:
         Planner(
-          std::string const & robot,
           ros::NodeHandle const & nh,
           ros::NodeHandle const & ph
         );
         ~Planner();
 
-        bool Init();
+        bool Init(std::string const & scene_file, std::string const & request_file);
         void RunPlannerServiceServer();
         bool RequestPlanCallback(
           sym_plan_msgs::RequestPlan::Request & request,
@@ -107,7 +107,7 @@ namespace symplan {
         bool readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotState & state);
         bool setStartState(double const * state);
         bool setPlanningAndCollisionReferenceState(moveit_msgs::RobotState & state);
-        void fillGoalConstraint(
+        bool fillGoalConstraint(
           std::vector<double> const & pose,
           std::string const & frame_id,
           moveit_msgs::Constraints & goals,

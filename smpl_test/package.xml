@@ -20,6 +20,7 @@
     <depend>smpl_ompl_interface</depend>
     <depend>visualization_msgs</depend>
     <depend>sym_plan_msgs</depend>
+    <depend>robowflex_library</depend>
 
     <exec_depend>pr2_description</exec_depend>
     <exec_depend>franka_description</exec_depend>

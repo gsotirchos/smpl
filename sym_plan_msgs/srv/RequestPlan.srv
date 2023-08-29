@@ -1,6 +1,6 @@
 string goal_type
 moveit_msgs/RobotState start_state
-float64[6] goal
+float64[] goal
 ---
 bool success
 float64 cost

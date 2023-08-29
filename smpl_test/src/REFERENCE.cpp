@@ -78,9 +78,7 @@ void FillGoalConstraint(
 
     goals.position_constraints[0].constraint_region.primitives.resize(1);
     goals.position_constraints[0].constraint_region.primitive_poses.resize(1);
-    goals.position_constraints[0]
-      .constraint_region.primitives[0]
-      .type = shape_msgs::SolidPrimitive::BOX;
+    goals.position_constraints[0].constraint_region.primitives[0].type = shape_msgs::SolidPrimitive::BOX;
     goals.position_constraints[0].constraint_region.primitive_poses[0].position.x = pose[0];
     goals.position_constraints[0].constraint_region.primitive_poses[0].position.y = pose[1];
     goals.position_constraints[0].constraint_region.primitive_poses[0].position.z = pose[2];
@@ -564,8 +562,7 @@ int main(int argc, char * argv[]) {
     std::string object_filename;
     ph.param<std::string>("object_filename", object_filename, "");
 
-    // Read in collision objects from file and add to the
-    // scene...
+    // Read in collision objects from file and add them to the scene...
     if (!object_filename.empty()) {
         auto objects = GetCollisionObjects(object_filename, planning_frame);
         for (auto & object : objects) {

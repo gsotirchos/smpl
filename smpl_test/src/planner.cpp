@@ -1,6 +1,7 @@
 // #include <common/Utilities.hpp>
 #include <iostream>
 #include <moveit_msgs/JointConstraint.h>
+#include <robowflex_library/io.h>
 #include <thread>
 #include <vector>
 
@@ -18,31 +19,47 @@ using namespace symplan;
 
 // Public
 
-Planner::Planner(
-  std::string const & robot,
-  ros::NodeHandle const & nh,
-  ros::NodeHandle const & ph
-) :
-  robot_(robot),
-  nh_(nh),
-  ph_(ph) {
+Planner::Planner(ros::NodeHandle const & nh, ros::NodeHandle const & ph) : nh_(nh), ph_(ph) {
     if (VERBOSE) {
         ROS_INFO("Initialize visualizer");
     }
+    // robowflex::IO::YAMLFileToMessage();
     smpl::VisualizerROS * visualizer_ = new smpl::VisualizerROS(nh_, 100);
     smpl::viz::set_visualizer(visualizer_);
 
     attached_co_id_.clear();
-    cfg_ = std::unordered_map<std::string, double>();
+    cfg_ = std::unordered_map<std::string, double>();  // TODO: remove
+
+    // Advertise service servers
+    planner_service_server_ = nh_.advertiseService(
+      planner_service_name,
+      &Planner::RequestPlanCallback,
+      this
+    );
+    collision_object_service_server_ = nh_.advertiseService(
+      collision_object_service_name,
+      &Planner::ProcessCollisionObjectCallback,
+      this
+    );
+    request_ik_service_server_ = nh_.advertiseService(
+      request_ik_service_name,
+      &Planner::requestIKCallback,
+      this
+    );
 }
 
 Planner::~Planner() {
     delete visualizer_;
 }
 
-bool Planner::Init() {
-    // TODO
-    num_threads_ = (cfg_["algorithm"] == 0) ? 1 : static_cast<int>(cfg_["num_threads"]);
+bool Planner::Init(std::string const & scene_file, std::string const & request_file) {
+    if (!ph_.getParam("num_threads", num_threads_)) {
+        ROS_ERROR("Failed to retrieve param 'num_threads' from the param server");
+        return false;
+    }
+    if (VERBOSE) {
+        ROS_INFO("num_threads: %d \n", num_threads_);
+    }
 
     /////////////////
     // Robot Model //
@@ -52,7 +69,12 @@ bool Planner::Init() {
         ROS_INFO("Load common parameters");
     }
 
-    // Robot description required to initialize collision checker and robot model...
+    if (!ph_.getParam("robot_model_name", robot_)) {
+        ROS_ERROR("Failed to retrieve param 'robot_model_name' from the param server");
+        return false;
+    }
+
+    // Robot description is required to initialize collision checker and robot model...
     auto robot_description_key = "robot_description";
     std::string robot_description_param;
     if (!nh_.searchParam(robot_description_key, robot_description_param)) {
@@ -91,7 +113,7 @@ bool Planner::Init() {
     double df_size_x, df_size_y, df_size_z, df_res, df_origin_x, df_origin_y, df_origin_z,
       max_distance;
 
-    // TODO: check whether these have to be hardcoded here
+    // TODO: consider storing/importing these (planning space dimensions) someplace else
     if (robot_ == "pr2") {
         df_size_x = 1.5;
         df_size_y = 2.0;
@@ -102,13 +124,13 @@ bool Planner::Init() {
         df_origin_z = 0;
         max_distance = 1.8;
     } else if (robot_ == "panda") {
-        df_size_x = 1.5;
-        df_size_y = 1.5;
-        df_size_z = 1.0;
+        df_size_x = 2.0;     // 1.5;
+        df_size_y = 2.0;     // 1.5;
+        df_size_z = 2.0;     // 1.0;
         df_res = 0.02;
-        df_origin_x = -0.3;
-        df_origin_y = -0.75;
-        df_origin_z = 0.4;
+        df_origin_x = -1.0;  // -0.3;
+        df_origin_y = -1.0;  // -0.75;
+        df_origin_z = -1.0;  // 0.4;
         max_distance = 1.8;
     } else {
         ROS_ERROR("Robot collision model not recognized");
@@ -175,9 +197,11 @@ bool Planner::Init() {
             gripper_links_.push_back("l_gripper_r_finger_tip_link");
             gripper_links_.push_back("l_gripper_palm_link");
         } else {
-            throw std::runtime_error("Arm not indetified in planner");
+            ROS_ERROR("Arm not indetified in planner");
+            return false;
         }
 
+        // TODO: replace this with loaded dict from yaml
         smpl::collision::AllowedCollisionMatrix acm;
         for (auto & pair : PR2AllowedCollisionPairs) {
             acm.setEntry(pair.first, pair.second, true);
@@ -189,11 +213,13 @@ bool Planner::Init() {
         gripper_links_.push_back("panda_leftfinger");
         gripper_links_.push_back("panda_rightfinger");
 
+        // TODO: replace this with loaded dict from yaml
         smpl::collision::AllowedCollisionMatrix acm;
         for (auto & pair : FrankaAllowedCollisionPairs) {
             acm.setEntry(pair.first, pair.second, true);
         }
 
+        // TODO: what's this for?
         acm.setEntry("panda_link0", "table_2", true);
 
         cc_.setAllowedCollisionMatrix(acm);
@@ -215,14 +241,14 @@ bool Planner::Init() {
 
     cs_scene_.SetCollisionSpace(&cc_);
 
-    // TODO: I don't need this; we use object definitions
+    // TODO: I won't need this; we use object definitions
     // std::string object_filename;
     // ph_.param<std::string>("object_filename", object_filename, "");
     //
     // //Read in collision objects from file and add to the cs_scene_...
     // if (!object_filename.empty()) {
-    //     auto objects = getCollisionObjects(object_filename,
-    //     planning_frame_); for (auto& object : objects) {
+    //     auto objects = getCollisionObjects(object_filename, planning_frame_);
+    //     for (auto& object : objects) {
     //         cs_scene_.ProcessCollisionObjectMsg(object);
     //     }
     // }
@@ -233,17 +259,19 @@ bool Planner::Init() {
     }
 
     // Initialize start state
+    // TODO: replace this with some default state(s)
     if (!readInitialConfiguration(ph_, start_state_)) {
-        ROS_ERROR("Failed to get initial configuration.");
+        ROS_ERROR("Failed to get initial configuration");
         return false;
     }
 
     // Set reference state for planning and collision
     if (!setPlanningAndCollisionReferenceState(start_state_)) {
-        ROS_ERROR("Failed to set planning and collision reference state.");
+        ROS_ERROR("Failed to set planning and collision reference state");
         return false;
     }
 
+    // TODO: what's this?
     // std::vector<double> us = {0, -0.78539816, 0, -2.35619449, 0, 1.57079633, 0.78539816};
     // cc_.updateState(us);
 
@@ -297,23 +325,6 @@ bool Planner::Init() {
 
     VisualizeCollisionWorld();
 
-    // Advertise service servers
-    planner_service_server_ = nh_.advertiseService(
-      planner_service_name,
-      &Planner::RequestPlanCallback,
-      this
-    );
-    collision_object_service_server_ = nh_.advertiseService(
-      collision_object_service_name,
-      &Planner::ProcessCollisionObjectCallback,
-      this
-    );
-    request_ik_service_server_ = nh_.advertiseService(
-      request_ik_service_name,
-      &Planner::requestIKCallback,
-      this
-    );
-
     return true;
 }
 
@@ -327,18 +338,17 @@ bool Planner::RequestPlanCallback(
 
     // Set start state
     if (!setStartState(request.start_state.joint_state.position.data())) {
-        ROS_ERROR("Failed to set start state.");
+        ROS_ERROR("Failed to set start state");
         return false;
     }
 
     // Set reference state for planning and collision
     if (!setPlanningAndCollisionReferenceState(start_state_)) {
-        ROS_ERROR("Failed to set planning and collision reference state.");
+        ROS_ERROR("Failed to set planning and collision reference state");
         response.success = false;
         return true;
     }
 
-    // Call Planner
     std::vector<double> const goal{request.goal.begin(), request.goal.end()};
 
     moveit_msgs::MotionPlanRequest req;
@@ -351,7 +361,15 @@ bool Planner::RequestPlanCallback(
     }
 
     req.goal_constraints.resize(1);
-    fillGoalConstraint(goal, planning_frame_, req.goal_constraints[0], request.goal_type);
+    if (!fillGoalConstraint(
+          goal,
+          planning_frame_,
+          req.goal_constraints[0],
+          request.goal_type
+        )) {
+        ROS_ERROR("Failed to set goal constraints");
+        return false;
+    }
     req.group_name = robot_config_.group_name;
     req.max_acceleration_scaling_factor = 1.0;
     req.max_velocity_scaling_factor = 1.0;
@@ -363,15 +381,15 @@ bool Planner::RequestPlanCallback(
     } else if (request.goal_type == "joints") {
         req.planner_id = algo + ".joint_distance.manip";
     } else {
-        throw std::runtime_error("Goal type not identified!");
+        ROS_ERROR("Goal type not identified!");
+        return false;
     }
 
     req.start_state = start_state_;
 
     //== TODO: This exists in Init() too; Do I need it here? ====================
     // Set up planner interface
-    planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, &grid_);
-
+    planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
     if (!planner_interface_->init(planner_params_)) {
         ROS_ERROR("Failed to initialize Planner Interface");
         response.success = false;
@@ -388,10 +406,10 @@ bool Planner::RequestPlanCallback(
     planning_scene.robot_state = start_state_;
     auto plan_found = planner_interface_->solve(planning_scene, req, res);
     if ((!plan_found) || (res.trajectory.joint_trajectory.points.size() == 0)) {
-        ROS_ERROR("Failed to plan.");
+        ROS_ERROR("Failed to plan");
         response.success = false;
         response.cost = -1;
-        return true;
+        return false;
     }
 
     auto planning_stats = planner_interface_->getPlannerStats();
@@ -658,7 +676,7 @@ bool Planner::CheckStartState(
 ) {
     // Set start state
     if (!setStartState(start_state_joints.data())) {
-        ROS_ERROR("Failed to set start state.");
+        ROS_ERROR("Failed to set start state");
         return false;
     }
 
@@ -803,7 +821,7 @@ bool Planner::setupRobotModel(std::string const & urdf, RobotModelConfig const &
     rm_ = std::make_shared<smpl::KDLRobotModel>();
 
     if (!rm_->init(urdf, config.kinematics_frame, config.chain_tip_link, num_threads_)) {
-        ROS_ERROR("Failed to initialize robot model.");
+        ROS_ERROR("Failed to initialize robot model");
         return false;
     }
 
@@ -813,7 +831,7 @@ bool Planner::setupRobotModel(std::string const & urdf, RobotModelConfig const &
     //
     // for (int tidx = 0; tidx < num_threads_; ++tidx) {
     //    auto fk_solution = rm_->computeFK(joint_states, tidx);
-    //}
+    // }
 
     // std::vector<double> solution;
 
@@ -908,6 +926,7 @@ bool Planner::readRobotModelConfig(ros::NodeHandle const & nh, RobotModelConfig 
     return true;
 }
 
+// TODO: remove this
 bool Planner::readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotState & state) {
     XmlRpc::XmlRpcValue xlist;
 
@@ -916,7 +935,7 @@ bool Planner::readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotS
         nh.getParam("initial_configuration/joint_state", xlist);
 
         if (xlist.getType() != XmlRpc::XmlRpcValue::TypeArray) {
-            ROS_WARN("initial_configuration/joint_state is not an array.");
+            ROS_WARN("initial_configuration/joint_state is not an array");
         }
 
         if (xlist.size() > 0) {
@@ -937,7 +956,7 @@ bool Planner::readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotS
             }
         }
     } else {
-        ROS_WARN("initial_configuration/joint_state is not on the param server.");
+        ROS_WARN("initial_configuration/joint_state is not on the param server");
     }
 
     // multi_dof_joint_state
@@ -975,7 +994,7 @@ bool Planner::readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotS
                 ROS_WARN("initial_configuration/multi_dof_joint_state array is empty");
             }
         } else {
-            ROS_WARN("initial_configuration/multi_dof_joint_state is not an array.");
+            ROS_WARN("initial_configuration/multi_dof_joint_state is not an array");
         }
     }
 
@@ -1104,7 +1123,7 @@ bool Planner::setPlanningAndCollisionReferenceState(moveit_msgs::RobotState & st
     return true;
 }
 
-void Planner::fillGoalConstraint(
+bool Planner::fillGoalConstraint(
   std::vector<double> const & pose,
   std::string const & frame_id,
   moveit_msgs::Constraints & goals,
@@ -1112,7 +1131,8 @@ void Planner::fillGoalConstraint(
 ) {
     if (goal_type == "pose") {
         if (pose.size() < 6) {
-            return;
+            ROS_ERROR("Goal pose size < 6");
+            return false;
         }
 
         goals.position_constraints.resize(1);
@@ -1158,7 +1178,7 @@ void Planner::fillGoalConstraint(
         goals.orientation_constraints[0].absolute_z_axis_tolerance = 0.01;
 
         if (VERBOSE) {
-            ROS_INFO("Done packing the goal constraints message.");
+            ROS_INFO("Done packing the goal constraints message");
         }
     } else if (goal_type == "joints") {
         goals.joint_constraints.resize(robot_config_.planning_joints.size());
@@ -1172,8 +1192,11 @@ void Planner::fillGoalConstraint(
             goals.joint_constraints[idx] = jc;
         }
     } else {
-        throw std::runtime_error("Goal type not identified!");
+        ROS_ERROR("Goal type not identified!");
+        return false;
     }
+
+    return true;
 }
 
 auto Planner::getCollisionCube(
@@ -1215,7 +1238,7 @@ std::vector<moveit_msgs::CollisionObject> Planner::getCollisionCubes(
 
     if (object_ids.size() != objects.size()) {
         if (VERBOSE) {
-            ROS_INFO("object id list is not same length as object list. exiting.");
+            ROS_INFO("object id list is not same length as object list, exiting...");
         }
         return objs;
     }

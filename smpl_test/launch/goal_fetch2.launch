@@ -1,7 +1,7 @@
 <launch>
     <arg name="debug" default="false"/>
     <arg name="fullscreen" default="true"/>
-    <arg name="start_delay" default="5.0" />
+    <arg name="start_delay" default="0.0" />
     <arg name="rviz" default="true"/>
     <arg name="args" default=""/>
 
@@ -43,8 +43,9 @@
         <!-- planner params -->
         <rosparam command="load" file="$(find smpl_test)/config/franka_arm.yaml"/>
         <param name="planning/mprim_filename" value="$(find smpl_test)/config/franka.mprim"/>
-        <param name="allowed_planning_time" value="600.0"/>
-        <param name="num_threads" value="6"/>
+        <!--<param name="allowed_planning_time" value="600.0"/>-->
+        <param name="num_threads" value="4"/>
+        <param name="goal_type" value="joints"/>  <!-- "joints" / "pose" -->
 
         <!-- 2. scene -->
         <!-- 2.1 robot state -->
