@@ -2,32 +2,29 @@
 #define PLANNER_H
 
 // standard includes
+#include <moveit_msgs/MotionPlanRequest.h>
 #include <string>
-#include <unordered_map>
+#include <unordered_map>  // TODO: remove
 #include <vector>
 
 // system includes
 #include <eigen_conversions/eigen_msg.h>
 #include <leatherman/print.h>
-#include <leatherman/utils.h>
-#include <moveit_msgs/GetMotionPlan.h>
+#include <moveit_msgs/MotionPlanRequest.h>
 #include <moveit_msgs/PlanningScene.h>
 #include <ros/ros.h>
 #include <sbpl_kdl_robot_model/kdl_robot_model.h>
-#include <smpl/angles.h>
 #include <smpl/debug/visualizer_ros.h>
-#include <smpl/distance_map/edge_euclid_distance_map.h>
 #include <smpl/distance_map/euclid_distance_map.h>
 #include <smpl/ros/planner_interface.h>
-#include <smpl/ros/propagation_distance_field.h>
-// #include <sym_plan_msgs/ProcessAttachedCollisionObject.h>
+// #include <sym_plan_msgs/ProcessAttachedCollisionObject.h>  // TODO
 #include <sym_plan_msgs/ProcessCollisionObject.h>
 #include <sym_plan_msgs/RequestIK.h>
 #include <sym_plan_msgs/RequestPlan.h>
-#include <visualization_msgs/MarkerArray.h>
+// #include <robowflex_library/io.h>  // TODO
 
+// project includes
 #include "collision_space_scene_multithread.h"
-#include <robowflex_library/io.h>
 
 namespace symplan {
     struct RobotModelConfig {
@@ -55,11 +52,12 @@ namespace symplan {
       public:
         Planner(
           ros::NodeHandle const & nh,
-          ros::NodeHandle const & ph
+          ros::NodeHandle const & ph,
+          std::string const & problems_dir
         );
         ~Planner();
 
-        bool Init(std::string const & scene_file, std::string const & request_file);
+        bool Init();
         void RunPlannerServiceServer();
         bool RequestPlanCallback(
           sym_plan_msgs::RequestPlan::Request & request,
@@ -97,6 +95,12 @@ namespace symplan {
         constexpr static auto request_ik_service_name = "request_ik_service";
 
       private:
+        bool readProblemParams(
+          std::string const & problems_dir,
+          std::string const & problem_suffix,
+          moveit_msgs::PlanningScene & scene_msg,
+          moveit_msgs::MotionPlanRequest & request_msg
+        );
         bool requestIKCallback(
           sym_plan_msgs::RequestIK::Request & request,
           sym_plan_msgs::RequestIK::Response & response
@@ -138,6 +142,9 @@ namespace symplan {
         std::string robot_;
         ros::NodeHandle nh_;
         ros::NodeHandle ph_;
+        std::string problems_dir_;
+        std::string scene_common_params_;
+        std::string request_common_params_;
         std::unordered_map<std::string, double> cfg_;
         smpl::VisualizerROS * visualizer_;
         ros::ServiceServer planner_service_server_;

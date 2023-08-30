@@ -1,17 +1,40 @@
-// #include <common/Utilities.hpp>
-#include <iostream>
-#include <moveit_msgs/JointConstraint.h>
-#include <robowflex_library/io.h>
+// standard includes
+#include <moveit_msgs/MotionPlanRequest.h>
+#include <string>
 #include <thread>
+#include <unordered_map>  // TODO: remove
 #include <vector>
 
+// system includes
+#include <eigen_conversions/eigen_msg.h>
+#include <leatherman/print.h>
+#include <moveit_msgs/MotionPlanRequest.h>
+#include <moveit_msgs/PlanningScene.h>
+#include <ros/ros.h>
+#include <sbpl_kdl_robot_model/kdl_robot_model.h>
+#include <smpl/debug/visualizer_ros.h>
+#include <smpl/distance_map/euclid_distance_map.h>
+#include <smpl/ros/planner_interface.h>
+// #include <sym_plan_msgs/ProcessAttachedCollisionObject.h>  // TODO
+#include <sym_plan_msgs/ProcessCollisionObject.h>
+#include <sym_plan_msgs/RequestIK.h>
+#include <sym_plan_msgs/RequestPlan.h>
+// #include <robowflex_library/io.h>  // TODO
+
+// #include <leatherman/utils.h>
+// #include <smpl/angles.h>
+// #include <smpl/distance_map/edge_euclid_distance_map.h>
+// #include <smpl/ros/propagation_distance_field.h>
+// #include <visualization_msgs/MarkerArray.h>
+
+// project includes
+#include "collision_space_scene_multithread.h"
 #include "franka_allowed_collision_pairs.h"
 #include "pr2_allowed_collision_pairs.h"
 
 #include "planner.h"
 
 constexpr bool VERBOSE = true;
-// #define print(x) (VERBOSE) ? ROS_INFO(x)
 
 
 using namespace symplan;
@@ -19,40 +42,44 @@ using namespace symplan;
 
 // Public
 
-Planner::Planner(ros::NodeHandle const & nh, ros::NodeHandle const & ph) : nh_(nh), ph_(ph) {
+Planner::Planner(
+  ros::NodeHandle const & nh,
+  ros::NodeHandle const & ph,
+  std::string const & problems_dir
+) :
+  nh_(nh),
+  ph_(ph),
+  problems_dir_(problems_dir) {
     if (VERBOSE) {
         ROS_INFO("Initialize visualizer");
     }
-    // robowflex::IO::YAMLFileToMessage();
     smpl::VisualizerROS * visualizer_ = new smpl::VisualizerROS(nh_, 100);
     smpl::viz::set_visualizer(visualizer_);
 
     attached_co_id_.clear();
     cfg_ = std::unordered_map<std::string, double>();  // TODO: remove
-
-    // Advertise service servers
-    planner_service_server_ = nh_.advertiseService(
-      planner_service_name,
-      &Planner::RequestPlanCallback,
-      this
-    );
-    collision_object_service_server_ = nh_.advertiseService(
-      collision_object_service_name,
-      &Planner::ProcessCollisionObjectCallback,
-      this
-    );
-    request_ik_service_server_ = nh_.advertiseService(
-      request_ik_service_name,
-      &Planner::requestIKCallback,
-      this
-    );
 }
 
 Planner::~Planner() {
     delete visualizer_;
 }
 
-bool Planner::Init(std::string const & scene_file, std::string const & request_file) {
+bool Planner::Init() {
+    // Read an arbitrary problem's parameters (to set the common parameters)
+    moveit_msgs::PlanningScene scene_common_msg;
+    moveit_msgs::MotionPlanRequest request_common_msg;
+    if (!readProblemParams(
+          problems_dir_,
+          "0001",
+          scene_common_msg,
+          request_common_msg
+        )) {
+        ROS_ERROR(
+          "Could not read the problem's 0001 parameters. Are the contents of %s properly formatted?",
+          problems_dir_.c_str()
+        );
+    }
+
     if (!ph_.getParam("num_threads", num_threads_)) {
         ROS_ERROR("Failed to retrieve param 'num_threads' from the param server");
         return false;
@@ -69,10 +96,16 @@ bool Planner::Init(std::string const & scene_file, std::string const & request_f
         ROS_INFO("Load common parameters");
     }
 
-    if (!ph_.getParam("robot_model_name", robot_)) {
+    robot_ = scene_common_msg.robot_model_name;
+    if (robot_ == "") {
         ROS_ERROR("Failed to retrieve param 'robot_model_name' from the param server");
         return false;
     }
+
+    //if (!ph_.getParam("robot_model_name", robot_)) {
+    //    ROS_ERROR("Failed to retrieve param 'robot_model_name' from the param server");
+    //    return false;
+    //}
 
     // Robot description is required to initialize collision checker and robot model...
     auto robot_description_key = "robot_description";
@@ -325,6 +358,23 @@ bool Planner::Init(std::string const & scene_file, std::string const & request_f
 
     VisualizeCollisionWorld();
 
+    // Advertise service servers
+    planner_service_server_ = nh_.advertiseService(
+      planner_service_name,
+      &Planner::RequestPlanCallback,
+      this
+    );
+    collision_object_service_server_ = nh_.advertiseService(
+      collision_object_service_name,
+      &Planner::ProcessCollisionObjectCallback,
+      this
+    );
+    request_ik_service_server_ = nh_.advertiseService(
+      request_ik_service_name,
+      &Planner::requestIKCallback,
+      this
+    );
+
     return true;
 }
 
@@ -404,7 +454,7 @@ bool Planner::RequestPlanCallback(
 
     moveit_msgs::PlanningScene planning_scene;
     planning_scene.robot_state = start_state_;
-    auto plan_found = planner_interface_->solve(planning_scene, req, res);
+    auto plan_found = planner_interface_->solve(moveit_msgs::PlanningScene{}, req, res);
     if ((!plan_found) || (res.trajectory.joint_trajectory.points.size() == 0)) {
         ROS_ERROR("Failed to plan");
         response.success = false;
@@ -768,6 +818,17 @@ std::unordered_map<std::string, double> Planner::GetConfig() {
 
 // Private
 
+bool Planner::readProblemParams(
+  std::string const & problems_dir,
+  std::string const & problem_suffix,
+  moveit_msgs::PlanningScene & scene_msg,
+  moveit_msgs::MotionPlanRequest & request_msg
+) {
+    // TODO: fill this
+    // robowflex::IO::YAMLFileToMessage();
+    return true;
+}
+
 bool Planner::requestIKCallback(
   sym_plan_msgs::RequestIK::Request & request,
   sym_plan_msgs::RequestIK::Response & response
@@ -920,7 +981,7 @@ bool Planner::readRobotModelConfig(ros::NodeHandle const & nh, RobotModelConfig 
         config.planning_joints.push_back(jname);
     }
 
-    // only required for generic kdl robot model?
+    // TODO: only required for generic kdl robot model?
     nh.getParam("kinematics_frame", config.kinematics_frame);
     nh.getParam("chain_tip_link", config.chain_tip_link);
     return true;
