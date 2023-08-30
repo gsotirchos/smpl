@@ -60,7 +60,6 @@
 
 #include "collision_space_scene_multithread.h"
 #include "franka_allowed_collision_pairs.h"
-#include "planner.h"
 #include "pr2_allowed_collision_pairs.h"
 
 void FillGoalConstraint(
