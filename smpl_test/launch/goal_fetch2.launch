@@ -4,23 +4,24 @@
     <arg name="start_delay" default="0.0" />
     <arg name="rviz" default="true"/>
     <arg name="args" default=""/>
-
-    <param name="robot_description" command="$(find xacro)/xacro '$(find franka_description)/robots/panda/panda.urdf.xacro' hand:=true"/>
-
     <arg name="sleep" default="bash -c 'sleep $(arg start_delay); $0 $@' "/>
+
     <arg unless="$(arg debug)" name="launch-prefix" value="$(arg sleep)"/>
     <arg     if="$(arg debug)" name="launch-prefix" value="$(arg sleep) gdb -ex run --args"/>
 
     <arg unless="$(arg fullscreen)" name="rviz-fullscreen" value=""/>
     <arg     if="$(arg fullscreen)" name="rviz-fullscreen" value="--fullscreen"/>
 
+    <param name="robot_description" command="$(find xacro)/xacro '$(find franka_description)/robots/panda/panda.urdf.xacro' hand:=true"/>
+
     <!-- 0. RViz -->
     <node if="$(arg rviz)" type="rviz" name="rviz" pkg="rviz" args="-d $(find smpl_test)/config/config.rviz $(arg rviz-fullscreen)"/>
 
+    <!-- 1. planner node -->
     <node pkg="smpl_test" type="plannerNode" name="planner_node" launch-prefix="$(arg launch-prefix)" args="$(arg args)">
         <param name="planning_frame" value="odom_combined"/>
 
-        <!-- 1. robot model (for planning) -->
+        <!-- robot model (for planning) -->
         <rosparam param="robot_model">
             group_name: manipulator
             planning_joints:
@@ -46,17 +47,19 @@
         <!--<param name="allowed_planning_time" value="600.0"/>-->
         <param name="num_threads" value="4"/>
         <param name="goal_type" value="joints"/>  <!-- "joints" / "pose" -->
+        <param name="robot_model_name" value="panda"/>  <!-- TODO: remove -->
 
-        <!-- 2. scene -->
-        <!-- 2.1 robot state -->
+        <!-- scene -->
+        <!-- robot state -->
         <rosparam command="load" file="$(find smpl_test)/experiments/franka_goal_shelf.yaml"/>
 
-        <!-- 2.2 world state -->
+        <!-- world state -->
         <param name="object_filename" value="$(find smpl_test)/env/shelf.env"/>
 
-        <!-- 3. scenario -->
+        <!-- scenario -->
     </node>
 
+    <!-- 2. plan request node -->
     <node pkg="smpl_test" type="callPlannerFetch" name="call_planner_fetch" launch-prefix="$(arg launch-prefix)" args="$(arg args)">
         <rosparam command="load" file="$(find smpl_test)/experiments/franka_goal_shelf.yaml"/>
     </node>
