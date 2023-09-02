@@ -17,11 +17,10 @@
 #include <smpl/debug/visualizer_ros.h>
 #include <smpl/distance_map/euclid_distance_map.h>
 #include <smpl/ros/planner_interface.h>
-// #include <sym_plan_msgs/ProcessAttachedCollisionObject.h>  // TODO
-#include <sym_plan_msgs/ProcessCollisionObject.h>
-#include <sym_plan_msgs/RequestIK.h>
-#include <sym_plan_msgs/RequestPlan.h>
-// #include <robowflex_library/io.h>  // TODO
+#include <sym_plan_msgs/ProcessAttachedCollisionObject.h>  // TODO:
+#include <sym_plan_msgs/ProcessCollisionObject.h>          // remove
+#include <sym_plan_msgs/RequestIK.h>                       // dependency
+#include <sym_plan_msgs/RequestPlan.h>                     // to these
 
 // project includes
 #include "collision_space_scene_multithread.h"
@@ -67,10 +66,10 @@ namespace symplan {
           sym_plan_msgs::ProcessCollisionObject::Request & request,
           sym_plan_msgs::ProcessCollisionObject::Response & response
         );
-        // bool ProcessAttachedCollisionObjectCallback(
-        //   sym_plan_msgs::ProcessAttachedCollisionObject::Request & request,
-        //   sym_plan_msgs::ProcessAttachedCollisionObject::Response & response
-        //);
+        bool ProcessAttachedCollisionObjectCallback(
+          sym_plan_msgs::ProcessAttachedCollisionObject::Request & request,
+          sym_plan_msgs::ProcessAttachedCollisionObject::Response & response
+        );
         Eigen::Affine3d ComputeFK(std::vector<double> const & joints);
         bool ComputeIK(
           Eigen::Affine3d const & pose,
@@ -139,6 +138,7 @@ namespace symplan {
         std::string robot_description_;
         smpl::PlanningParams planner_params_;
 
+        int num_threads_;
         std::string robot_;
         ros::NodeHandle nh_;
         ros::NodeHandle ph_;
@@ -146,11 +146,11 @@ namespace symplan {
         std::string scene_common_params_;
         std::string request_common_params_;
         std::unordered_map<std::string, double> cfg_;
+
         smpl::VisualizerROS * visualizer_;
         ros::ServiceServer planner_service_server_;
         ros::ServiceServer collision_object_service_server_;
         ros::ServiceServer request_ik_service_server_;
-        int num_threads_;
 
         moveit_msgs::RobotState start_state_;
         std::shared_ptr<smpl::PlannerInterface> planner_interface_;

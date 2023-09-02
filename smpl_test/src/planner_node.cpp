@@ -8,10 +8,6 @@ bool rvizIsRunning() {
         return false;
     }
 
-    // for (auto const & node_name : node_names) {
-    //     ROS_INFO("NODE NAME: %s", node_name.c_str());
-    // }
-
     if (!std::count(node_names.begin(), node_names.end(), "/rviz")) {
         return false;
     }
@@ -23,7 +19,7 @@ int main(int argc, char * argv[]) {
     ros::init(argc, argv, "planner");
     ros::NodeHandle const nh;
     ros::NodeHandle const ph("~");
-    std::string const problems_dir = "~/";
+    std::string const problems_dir = "~/problems/panda/bookshelf_small_panda/";
 
     while (!rvizIsRunning()) {
         ROS_INFO("Waiting for RViz to start before instantiating a planner...");

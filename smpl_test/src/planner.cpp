@@ -10,16 +10,16 @@
 #include <leatherman/print.h>
 #include <moveit_msgs/MotionPlanRequest.h>
 #include <moveit_msgs/PlanningScene.h>
+#include <robowflex_library/io/yaml.h>
 #include <ros/ros.h>
 #include <sbpl_kdl_robot_model/kdl_robot_model.h>
 #include <smpl/debug/visualizer_ros.h>
 #include <smpl/distance_map/euclid_distance_map.h>
 #include <smpl/ros/planner_interface.h>
-// #include <sym_plan_msgs/ProcessAttachedCollisionObject.h>  // TODO
-#include <sym_plan_msgs/ProcessCollisionObject.h>
-#include <sym_plan_msgs/RequestIK.h>
-#include <sym_plan_msgs/RequestPlan.h>
-// #include <robowflex_library/io.h>  // TODO
+#include <sym_plan_msgs/ProcessAttachedCollisionObject.h>  // TODO:
+#include <sym_plan_msgs/ProcessCollisionObject.h>          // remove
+#include <sym_plan_msgs/RequestIK.h>                       // dependency
+#include <sym_plan_msgs/RequestPlan.h>                     // to these
 
 // #include <leatherman/utils.h>
 // #include <smpl/angles.h>
@@ -33,6 +33,7 @@
 #include "pr2_allowed_collision_pairs.h"
 
 #include "planner.h"
+
 
 constexpr bool VERBOSE = true;
 
@@ -68,14 +69,9 @@ bool Planner::Init() {
     // Read an arbitrary problem's parameters (to set the common parameters)
     moveit_msgs::PlanningScene scene_common_msg;
     moveit_msgs::MotionPlanRequest request_common_msg;
-    if (!readProblemParams(
-          problems_dir_,
-          "0001",
-          scene_common_msg,
-          request_common_msg
-        )) {
+    if (!readProblemParams(problems_dir_, "0001", scene_common_msg, request_common_msg)) {
         ROS_ERROR(
-          "Could not read the problem's 0001 parameters. Are the contents of %s properly formatted?",
+          "Could not read problem 0001's parameters. Are the contents of %s properly formatted?",
           problems_dir_.c_str()
         );
     }
@@ -98,14 +94,11 @@ bool Planner::Init() {
 
     robot_ = scene_common_msg.robot_model_name;
     if (robot_ == "") {
-        ROS_ERROR("Failed to retrieve param 'robot_model_name' from the param server");
+        ROS_ERROR(
+          "Failed to retrieve param 'robot_model_name' from the scene configuration file"
+        );
         return false;
     }
-
-    //if (!ph_.getParam("robot_model_name", robot_)) {
-    //    ROS_ERROR("Failed to retrieve param 'robot_model_name' from the param server");
-    //    return false;
-    //}
 
     // Robot description is required to initialize collision checker and robot model...
     auto robot_description_key = "robot_description";
@@ -568,7 +561,6 @@ bool Planner::ProcessCollisionObjectCallback(
     return true;
 }
 
-/*
 bool Planner::ProcessAttachedCollisionObjectCallback(
   sym_plan_msgs::ProcessAttachedCollisionObject::Request & request,
   sym_plan_msgs::ProcessAttachedCollisionObject::Response & response
@@ -688,7 +680,6 @@ bool Planner::ProcessAttachedCollisionObjectCallback(
 
     return true;
 }
-*/
 
 Eigen::Affine3d Planner::ComputeFK(std::vector<double> const & joints) {
     return rm_->computeFK(joints);
@@ -825,7 +816,11 @@ bool Planner::readProblemParams(
   moveit_msgs::MotionPlanRequest & request_msg
 ) {
     // TODO: fill this
-    // robowflex::IO::YAMLFileToMessage();
+    robowflex::IO::fromYAMLFile(scene_msg, problems_dir + "scene" + problem_suffix + ".yaml");
+    robowflex::IO::fromYAMLFile(
+      request_msg,
+      problems_dir + "request" + problem_suffix + ".yaml"
+    );
     return true;
 }
 
