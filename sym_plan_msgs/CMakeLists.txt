@@ -16,9 +16,10 @@ find_package(
 
 add_service_files(
   FILES
-  RequestPlan.srv
+  ProcessAttachedCollisionObject.srv
   ProcessCollisionObject.srv
   RequestIK.srv
+  RequestPlan.srv
 )
 
 generate_messages(
