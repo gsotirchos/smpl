@@ -82,9 +82,9 @@ void FillGoalConstraint(
     goals.position_constraints[0].constraint_region.primitive_poses[0].position.y = pose[1];
     goals.position_constraints[0].constraint_region.primitive_poses[0].position.z = pose[2];
 
-    //    goals.position_constraints[0].position.x = pose[0];
-    //    goals.position_constraints[0].position.y = pose[1];
-    //    goals.position_constraints[0].position.z = pose[2];
+    // goals.position_constraints[0].position.x = pose[0];
+    // goals.position_constraints[0].position.y = pose[1];
+    // goals.position_constraints[0].position.z = pose[2];
 
     Eigen::Quaterniond q;
     smpl::angles::from_euler_zyx(pose[5], pose[4], pose[3], q);
@@ -387,11 +387,8 @@ bool ReadPlannerConfig(ros::NodeHandle const & nh, PlannerConfig & config) {
     return true;
 }
 
-auto SetupRobotModel(
-  std::string const & urdf,
-  RobotModelConfig const & config,
-  int num_threads
-) -> std::unique_ptr<smpl::KDLRobotModel> {
+auto SetupRobotModel(std::string const & urdf, RobotModelConfig const & config, int num_threads)
+  -> std::unique_ptr<smpl::KDLRobotModel> {
     if (config.kinematics_frame.empty() || config.chain_tip_link.empty()) {
         ROS_ERROR(
           "Failed to retrieve param 'kinematics_frame' or 'chain_tip_link' from the param server"

@@ -19,9 +19,10 @@
 
     <!-- 1. planner node -->
     <node pkg="smpl_test" type="plannerNode" name="planner_node" launch-prefix="$(arg launch-prefix)" args="$(arg args)">
-        <param name="planning_frame" value="odom_combined"/>
+        <param name="planning_frame" value="odom_combined"/>  <!-- TODO: keep! -->
 
         <!-- robot model (for planning) -->
+        <!-- TODO: keep (only kinematics_frame & chain_tip_link & gripper_links) -->
         <rosparam param="robot_model">
             group_name: manipulator
             planning_joints:
@@ -36,31 +37,34 @@
                 panda_link0
             chain_tip_link:
                 panda_hand
+            gripper_links:
+                panda_hand
+                panda_leftfinger
+                panda_rightfinger
         </rosparam>
 
         <!-- collision checking -->
+        <!-- TODO: remove -->
         <rosparam command="load" file="$(find sbpl_collision_checking_test)/config/collision_model_franka.yaml"/>
 
         <!-- planner params -->
         <rosparam command="load" file="$(find smpl_test)/config/franka_arm.yaml"/>
         <param name="planning/mprim_filename" value="$(find smpl_test)/config/franka.mprim"/>
-        <!--<param name="allowed_planning_time" value="600.0"/>-->
         <param name="num_threads" value="4"/>
         <param name="goal_type" value="joints"/>  <!-- "joints" / "pose" -->
-        <param name="robot_model_name" value="panda"/>  <!-- TODO: remove -->
 
-        <!-- scene -->
         <!-- robot state -->
+        <!-- TODO: remove -->
         <rosparam command="load" file="$(find smpl_test)/experiments/franka_goal_shelf.yaml"/>
 
         <!-- world state -->
+        <!-- TODO: remove -->
         <param name="object_filename" value="$(find smpl_test)/env/shelf.env"/>
-
-        <!-- scenario -->
     </node>
 
     <!-- 2. plan request node -->
     <node pkg="smpl_test" type="callPlannerFetch" name="call_planner_fetch" launch-prefix="$(arg launch-prefix)" args="$(arg args)">
+        <!-- TODO: remove -->
         <rosparam command="load" file="$(find smpl_test)/experiments/franka_goal_shelf.yaml"/>
     </node>
 </launch>

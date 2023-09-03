@@ -43,14 +43,10 @@ using namespace symplan;
 
 // Public
 
-Planner::Planner(
-  ros::NodeHandle const & nh,
-  ros::NodeHandle const & ph,
-  std::string const & problems_dir
-) :
+Planner::Planner(ros::NodeHandle const & nh, ros::NodeHandle const & ph) :
   nh_(nh),
   ph_(ph),
-  problems_dir_(problems_dir) {
+  index_width_(4) {
     if (VERBOSE) {
         ROS_INFO("Initialize visualizer");
     }
@@ -65,13 +61,23 @@ Planner::~Planner() {
     delete visualizer_;
 }
 
-bool Planner::Init() {
-    // Read an arbitrary problem's parameters (to set the common parameters)
+bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
+    problems_dir_ = problems_dir;
+
+    // Read an arbitrary problem's parameters (to get their common parameters)
     moveit_msgs::PlanningScene scene_common_msg;
     moveit_msgs::MotionPlanRequest request_common_msg;
-    if (!readProblemParams(problems_dir_, "0001", scene_common_msg, request_common_msg)) {
+
+    int const arbitrary_problem_index = 1;
+    if (!readProblemParamsMsgs(
+          problems_dir_,
+          arbitrary_problem_index,
+          scene_common_msg,
+          request_common_msg
+        )) {
         ROS_ERROR(
-          "Could not read problem 0001's parameters. Are the contents of %s properly formatted?",
+          "Could not read problem %d's parameters. Are the contents of %s properly formatted?",
+          arbitrary_problem_index,
           problems_dir_.c_str()
         );
     }
@@ -94,8 +100,7 @@ bool Planner::Init() {
 
     robot_ = scene_common_msg.robot_model_name;
     if (robot_ == "") {
-        ROS_ERROR(
-          "Failed to retrieve param 'robot_model_name' from the scene configuration file"
+        ROS_ERROR("Failed to retrieve param 'robot_model_name' from the scene configuration file"
         );
         return false;
     }
@@ -113,8 +118,8 @@ bool Planner::Init() {
         return false;
     }
 
-    if (!readRobotModelConfig(ros::NodeHandle("~robot_model"), robot_config_)) {
-        ROS_ERROR("Failed to read robot model config from param server");
+    if (!readRobotModelConfig(request_common_msg, robot_config_)) {
+        ROS_ERROR("Failed to read robot model config from the scene configuration file");
         return false;
     }
 
@@ -139,28 +144,17 @@ bool Planner::Init() {
     double df_size_x, df_size_y, df_size_z, df_res, df_origin_x, df_origin_y, df_origin_z,
       max_distance;
 
-    // TODO: consider storing/importing these (planning space dimensions) someplace else
-    if (robot_ == "pr2") {
-        df_size_x = 1.5;
-        df_size_y = 2.0;
-        df_size_z = 2.0;
-        df_res = 0.02;
-        df_origin_x = -0.5;
-        df_origin_y = -1.0;
-        df_origin_z = 0;
-        max_distance = 1.8;
-    } else if (robot_ == "panda") {
-        df_size_x = 2.0;     // 1.5;
-        df_size_y = 2.0;     // 1.5;
-        df_size_z = 2.0;     // 1.0;
-        df_res = 0.02;
-        df_origin_x = -1.0;  // -0.3;
-        df_origin_y = -1.0;  // -0.75;
-        df_origin_z = -1.0;  // 0.4;
-        max_distance = 1.8;
-    } else {
-        ROS_ERROR("Robot collision model not recognized");
-    }
+    df_size_x = request_common_msg.workspace_parameters.max_corner.x
+                - request_common_msg.workspace_parameters.min_corner.x;
+    df_size_y = request_common_msg.workspace_parameters.max_corner.y
+                - request_common_msg.workspace_parameters.min_corner.y;
+    df_size_z = request_common_msg.workspace_parameters.max_corner.z
+                - request_common_msg.workspace_parameters.min_corner.z;
+    df_origin_x = 0.0;   // TODO later:
+    df_origin_y = 0.0;   // should correspond to the
+    df_origin_z = 0.0;   // end effector's starting pose
+    df_res = 0.02;       // TODO later:
+    max_distance = 1.8;  // configure these externally(?)
 
     using DistanceMapType = smpl::EuclidDistanceMap;
 
@@ -190,6 +184,7 @@ bool Planner::Init() {
         ROS_INFO("Initialize collision checker");
     }
 
+    // Load robot-specific spheres collision model
     smpl::collision::CollisionModelConfig cc_conf;
     if (!smpl::collision::CollisionModelConfig::Load(ph_, cc_conf)) {
         ROS_ERROR("Failed to load Collision Model Config");
@@ -209,52 +204,29 @@ bool Planner::Init() {
         return false;
     }
 
-    if (robot_ == "pr2") {
-        if (robot_config_.group_name == "right_arm") {
-            gripper_links_.push_back("r_gripper_l_finger_link");
-            gripper_links_.push_back("r_gripper_r_finger_link");
-            gripper_links_.push_back("r_gripper_l_finger_tip_link");
-            gripper_links_.push_back("r_gripper_r_finger_tip_link");
-            gripper_links_.push_back("r_gripper_palm_link");
-        } else if (robot_config_.group_name == "left_arm") {
-            gripper_links_.push_back("l_gripper_l_finger_link");
-            gripper_links_.push_back("l_gripper_r_finger_link");
-            gripper_links_.push_back("l_gripper_l_finger_tip_link");
-            gripper_links_.push_back("l_gripper_r_finger_tip_link");
-            gripper_links_.push_back("l_gripper_palm_link");
-        } else {
-            ROS_ERROR("Arm not indetified in planner");
-            return false;
-        }
-
-        // TODO: replace this with loaded dict from yaml
-        smpl::collision::AllowedCollisionMatrix acm;
-        for (auto & pair : PR2AllowedCollisionPairs) {
-            acm.setEntry(pair.first, pair.second, true);
-        }
-
-        cc_.setAllowedCollisionMatrix(acm);
-    } else if (robot_ == "panda") {
+    // TODO later: load these from the parameter server (specified in the launch file)
+    if (robot_ == "panda") {
         gripper_links_.push_back("panda_hand");
         gripper_links_.push_back("panda_leftfinger");
         gripper_links_.push_back("panda_rightfinger");
-
-        // TODO: replace this with loaded dict from yaml
-        smpl::collision::AllowedCollisionMatrix acm;
-        for (auto & pair : FrankaAllowedCollisionPairs) {
-            acm.setEntry(pair.first, pair.second, true);
-        }
-
-        // TODO: what's this for?
-        acm.setEntry("panda_link0", "table_2", true);
-
-        cc_.setAllowedCollisionMatrix(acm);
+    } else if (robot_ == "fetch") {
+        gripper_links_.push_back("gripper_link");
+        gripper_links_.push_back("l_gripper_finger_link");
+        gripper_links_.push_back("r_gripper_finger_link");
     } else {
-        ROS_ERROR("Robot collision model not recognized");
+        ROS_ERROR("Robot model not recognized for specifying gripper links");
     }
 
-    // This does the same thing as turning the frames through config
-    // TODO: ^ ??? and do I need this here?
+    smpl::collision::AllowedCollisionMatrix acm;
+    // TODO: replace this with loading from yaml
+    for (auto & pair : FrankaAllowedCollisionPairs) {
+        acm.setEntry(pair.first, pair.second, true);
+    }
+
+    cc_.setAllowedCollisionMatrix(acm);
+
+    // TODO later: replace this with loading from
+    // scene_common_msg.fixed_frame_transforms.transform
     cc_.setWorldToModelTransform(0, Eigen::Affine3d::Identity());
 
     /////////////////
@@ -267,7 +239,8 @@ bool Planner::Init() {
 
     cs_scene_.SetCollisionSpace(&cc_);
 
-    // TODO: I won't need this; we use object definitions
+    //// TODO: replace this with loading (before planning) the obstacles from
+    //// scene_common_msg.world.collision_objects
     // std::string object_filename;
     // ph_.param<std::string>("object_filename", object_filename, "");
     //
@@ -285,7 +258,7 @@ bool Planner::Init() {
     }
 
     // Initialize start state
-    // TODO: replace this with some default state(s)
+    // TODO: replace this with loading the start state
     if (!readInitialConfiguration(ph_, start_state_)) {
         ROS_ERROR("Failed to get initial configuration");
         return false;
@@ -297,7 +270,7 @@ bool Planner::Init() {
         return false;
     }
 
-    // TODO: what's this?
+    // TODO later: what's this for?
     // std::vector<double> us = {0, -0.78539816, 0, -2.35619449, 0, 1.57079633, 0.78539816};
     // cc_.updateState(us);
 
@@ -321,14 +294,8 @@ bool Planner::Init() {
     planner_params_.addParam("use_short_dist_mprims", planning_config_.use_short_dist_mprims);
     planner_params_.addParam("xyz_snap_dist_thresh", planning_config_.xyz_snap_dist_thresh);
     planner_params_.addParam("rpy_snap_dist_thresh", planning_config_.rpy_snap_dist_thresh);
-    planner_params_.addParam(
-      "xyzrpy_snap_dist_thresh",
-      planning_config_.xyzrpy_snap_dist_thresh
-    );
-    planner_params_.addParam(
-      "short_dist_mprims_thresh",
-      planning_config_.short_dist_mprims_thresh
-    );
+    planner_params_.addParam("xyzrpy_snap_dist_thresh", planning_config_.xyzrpy_snap_dist_thresh);
+    planner_params_.addParam("short_dist_mprims_thresh", planning_config_.short_dist_mprims_thresh);
     planner_params_.addParam("epsilon", 100.0);
     planner_params_.addParam("search_mode", false);
     planner_params_.addParam("allow_partial_solutions", false);
@@ -340,7 +307,7 @@ bool Planner::Init() {
     planner_params_.addParam("bfs_inlation_radius", 0.02);
     planner_params_.addParam("bfs_cost_per_cell", 100);
 
-    //== TODO: This too exists in the planning callback; Do I need it here too? ==========
+    //== TODO later: This also exists in the plan() function; Do I need it here too? ====
     // Set up planner interface
     planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
     if (!planner_interface_->init(planner_params_)) {
@@ -351,35 +318,18 @@ bool Planner::Init() {
 
     VisualizeCollisionWorld();
 
-    // Advertise service servers
-    planner_service_server_ = nh_.advertiseService(
-      planner_service_name,
-      &Planner::RequestPlanCallback,
-      this
-    );
-    collision_object_service_server_ = nh_.advertiseService(
-      collision_object_service_name,
-      &Planner::ProcessCollisionObjectCallback,
-      this
-    );
-    request_ik_service_server_ = nh_.advertiseService(
-      request_ik_service_name,
-      &Planner::requestIKCallback,
-      this
-    );
-
     return true;
 }
 
-bool Planner::RequestPlanCallback(
-  sym_plan_msgs::RequestPlan::Request & request,
-  sym_plan_msgs::RequestPlan::Response & response
-) {
+/*
+bool Planner::planForProblem(int problem_index) {
     if (request.goal_type.empty()) {
         request.goal_type = "pose";
     }
 
-    // Set start state
+    // TODO: load obstacles to scene
+
+    // Set start state TODO
     if (!setStartState(request.start_state.joint_state.position.data())) {
         ROS_ERROR("Failed to set start state");
         return false;
@@ -392,6 +342,7 @@ bool Planner::RequestPlanCallback(
         return true;
     }
 
+    // TODO: load this from request_msg.goal_constraints.joint_constraints...
     std::vector<double> const goal{request.goal.begin(), request.goal.end()};
 
     moveit_msgs::MotionPlanRequest req;
@@ -413,6 +364,7 @@ bool Planner::RequestPlanCallback(
         ROS_ERROR("Failed to set goal constraints");
         return false;
     }
+    // TODO: load these from yaml configs
     req.group_name = robot_config_.group_name;
     req.max_acceleration_scaling_factor = 1.0;
     req.max_velocity_scaling_factor = 1.0;
@@ -753,6 +705,7 @@ bool Planner::CheckStartState(
 
     return planner_interface_->checkStart(planning_scene, req, res);
 }
+*/
 
 void Planner::VisualizeCollisionWorld() {
     while (!ros::ok()) {
@@ -790,6 +743,7 @@ void Planner::VisualizePath(moveit_msgs::RobotTrajectory trajectory, bool repeat
 }
 
 
+/*
 ros::NodeHandle & Planner::GetNh() {
     return nh_;
 }
@@ -805,25 +759,30 @@ std::string Planner::GetRobot() {
 std::unordered_map<std::string, double> Planner::GetConfig() {
     return cfg_;
 }
+*/
 
 
 // Private
 
-bool Planner::readProblemParams(
+bool Planner::readProblemParamsMsgs(
   std::string const & problems_dir,
-  std::string const & problem_suffix,
+  int problem_index,
   moveit_msgs::PlanningScene & scene_msg,
   moveit_msgs::MotionPlanRequest & request_msg
 ) {
     // TODO: fill this
-    robowflex::IO::fromYAMLFile(scene_msg, problems_dir + "scene" + problem_suffix + ".yaml");
-    robowflex::IO::fromYAMLFile(
-      request_msg,
-      problems_dir + "request" + problem_suffix + ".yaml"
-    );
+    std::ostringstream problem_index_ss;
+    problem_index_ss << std::setw(index_width_) << std::setfill('0') << problem_index << "\n";
+    std::string const scene_file = problems_dir + "/scene" + problem_index_ss.str() + ".yaml";
+    std::string const request_file = problems_dir + "/request" + problem_index_ss.str()
+                                     + ".yaml";
+
+    robowflex::IO::fromYAMLFile(scene_msg, scene_file);
+    robowflex::IO::fromYAMLFile(request_msg, request_file);
     return true;
 }
 
+/*
 bool Planner::requestIKCallback(
   sym_plan_msgs::RequestIK::Request & request,
   sym_plan_msgs::RequestIK::Response & response
@@ -862,6 +821,7 @@ bool Planner::requestIKCallback(
 
     return true;
 }
+*/
 
 bool Planner::setupRobotModel(std::string const & urdf, RobotModelConfig const & config) {
     if (config.kinematics_frame.empty() || config.chain_tip_link.empty()) {
@@ -954,31 +914,26 @@ bool Planner::readPlannerConfig(ros::NodeHandle const & nh, PlannerConfig & conf
     return true;
 }
 
-bool Planner::readRobotModelConfig(ros::NodeHandle const & nh, RobotModelConfig & config) {
-    if (!nh.getParam("group_name", config.group_name)) {
-        ROS_ERROR("Failed to read 'group_name' from the param server");
+bool Planner::readRobotModelConfig(
+  moveit_msgs::MotionPlanRequest const & request_msg,
+  RobotModelConfig & config
+) {
+    config.group_name = request_msg.group_name;
+    if (config.group_name == "") {
+        ROS_ERROR("Failed to read 'group_name' from the request configuration file");
         return false;
     }
 
-    std::string planning_joint_list;
-    if (!nh.getParam("planning_joints", planning_joint_list)) {
-        ROS_ERROR("Failed to read 'planning_joints' from the param server");
-        return false;
-    }
-
-    std::stringstream joint_name_stream(planning_joint_list);
-    while (joint_name_stream.good() && !joint_name_stream.eof()) {
-        std::string jname;
-        joint_name_stream >> jname;
-        if (jname.empty()) {
-            continue;
-        }
-        config.planning_joints.push_back(jname);
+    for (auto & joint_name : request_msg.start_state.joint_state.name) {
+        config.planning_joints.push_back(joint_name);
     }
 
     // TODO: only required for generic kdl robot model?
-    nh.getParam("kinematics_frame", config.kinematics_frame);
-    nh.getParam("chain_tip_link", config.chain_tip_link);
+    config.kinematics_frame = request_msg.start_state.joint_state.header.frame_id;
+    if (config.kinematics_frame == "") {
+        config.kinematics_frame = kinematics_frame[robot_];
+    }
+    config.chain_tip_link = chain_tip_link[robot_];
     return true;
 }
 
@@ -1065,6 +1020,7 @@ bool Planner::readInitialConfiguration(ros::NodeHandle & nh, moveit_msgs::RobotS
     return true;
 }
 
+// TODO: update this to load start state from yaml file
 bool Planner::setStartState(double const * state) {
     for (auto i = 0; i < start_state_.joint_state.name.size(); ++i) {
         if (cc_.robotCollisionModel()->name() == "pr2") {
@@ -1200,24 +1156,16 @@ bool Planner::fillGoalConstraint(
         goals.position_constraints[0]
           .constraint_region.primitives[0]
           .type = shape_msgs::SolidPrimitive::BOX;
-        goals.position_constraints[0]
-          .constraint_region.primitive_poses[0]
-          .position.x = pose[0];
-        goals.position_constraints[0]
-          .constraint_region.primitive_poses[0]
-          .position.y = pose[1];
-        goals.position_constraints[0]
-          .constraint_region.primitive_poses[0]
-          .position.z = pose[2];
+        goals.position_constraints[0].constraint_region.primitive_poses[0].position.x = pose[0];
+        goals.position_constraints[0].constraint_region.primitive_poses[0].position.y = pose[1];
+        goals.position_constraints[0].constraint_region.primitive_poses[0].position.z = pose[2];
 
         Eigen::Quaterniond q;
         smpl::angles::from_euler_zyx(pose[5], pose[4], pose[3], q);
         tf::quaternionEigenToMsg(q, goals.orientation_constraints[0].orientation);
 
         geometry_msgs::Pose p;
-        p.position = goals.position_constraints[0]
-                       .constraint_region.primitive_poses[0]
-                       .position;
+        p.position = goals.position_constraints[0].constraint_region.primitive_poses[0].position;
         p.orientation = goals.orientation_constraints[0].orientation;
 
         if (VERBOSE) {
@@ -1225,10 +1173,7 @@ bool Planner::fillGoalConstraint(
         }
 
         /// set tolerances
-        goals.position_constraints[0].constraint_region.primitives[0].dimensions.resize(
-          3,
-          0.015
-        );
+        goals.position_constraints[0].constraint_region.primitives[0].dimensions.resize(3, 0.015);
         goals.orientation_constraints[0].absolute_x_axis_tolerance = 0.01;
         goals.orientation_constraints[0].absolute_y_axis_tolerance = 0.01;
         goals.orientation_constraints[0].absolute_z_axis_tolerance = 0.01;
@@ -1255,6 +1200,7 @@ bool Planner::fillGoalConstraint(
     return true;
 }
 
+/*
 auto Planner::getCollisionCube(
   geometry_msgs::Pose const & pose,
   std::vector<double> & dims,
@@ -1362,3 +1308,4 @@ Planner::getCollisionObjects(std::string const & filename, std::string const & f
 
     return getCollisionCubes(objects, object_ids, frame_id);
 }
+*/
