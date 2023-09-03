@@ -321,7 +321,6 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
     return true;
 }
 
-/*
 bool Planner::planForProblem(int problem_index) {
     if (request.goal_type.empty()) {
         request.goal_type = "pose";
@@ -429,6 +428,7 @@ bool Planner::planForProblem(int problem_index) {
     return true;
 }
 
+/*
 bool Planner::ProcessCollisionObjectCallback(
   sym_plan_msgs::ProcessCollisionObject::Request & request,
   sym_plan_msgs::ProcessCollisionObject::Response & response
@@ -915,6 +915,7 @@ bool Planner::readPlannerConfig(ros::NodeHandle const & nh, PlannerConfig & conf
 }
 
 bool Planner::readRobotModelConfig(
+  ros::NodeHandle const & nh,
   moveit_msgs::MotionPlanRequest const & request_msg,
   RobotModelConfig & config
 ) {
@@ -929,11 +930,8 @@ bool Planner::readRobotModelConfig(
     }
 
     // TODO: only required for generic kdl robot model?
-    config.kinematics_frame = request_msg.start_state.joint_state.header.frame_id;
-    if (config.kinematics_frame == "") {
-        config.kinematics_frame = kinematics_frame[robot_];
-    }
-    config.chain_tip_link = chain_tip_link[robot_];
+    nh.getParam("kinematics_frame"), config.kinematics_frame);
+    nh.getParam("chain_tip_link"), config.chain_tip_link);
     return true;
 }
 

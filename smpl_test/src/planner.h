@@ -3,6 +3,7 @@
 
 // standard includes
 #include <moveit_msgs/MotionPlanRequest.h>
+#include <ros/node_handle.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -67,7 +68,7 @@ namespace symplan {
         ~Planner();
 
         bool loadProblemCommonParams(std::string const & problems_dir);
-        // bool planForProblem(int problem_index);  // TODO
+        bool planForProblem(int problem_index);  // TODO
         // bool ProcessCollisionObjectCallback(
         //   sym_plan_msgs::ProcessCollisionObject::Request & request,
         //   sym_plan_msgs::ProcessCollisionObject::Response & response
@@ -110,6 +111,7 @@ namespace symplan {
         bool setupRobotModel(std::string const & urdf, RobotModelConfig const & config);
         bool readPlannerConfig(ros::NodeHandle const & nh, PlannerConfig & config);
         bool readRobotModelConfig(
+          ros::NodeHandle const & nh,
           moveit_msgs::MotionPlanRequest const & request_msg,
           RobotModelConfig & config
         );
