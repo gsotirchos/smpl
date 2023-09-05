@@ -57,11 +57,6 @@ namespace symplan {
       {"fetch", "gripper_link"}
     };
 
-    static std::unordered_map<std::string, std::string> gripper_links = {
-      {"panda", "panda_hand"},
-      {"fetch", "gripper_link"}
-    };
-
     class Planner {
       public:
         Planner(ros::NodeHandle const & nh, ros::NodeHandle const & ph);
@@ -138,6 +133,16 @@ namespace symplan {
         // std::vector<moveit_msgs::CollisionObject>
         // getCollisionObjects(std::string const & filename, std::string const & frame_id);
 
+        ros::NodeHandle nh_;
+        ros::NodeHandle ph_;
+        std::string robot_name_;
+        int num_threads_;
+        std::string problems_dir_;
+        int problem_index_width_;
+        std::unordered_map<std::string, double> cfg_;  // TODO: remove
+
+        smpl::VisualizerROS * visualizer_;
+
         std::shared_ptr<smpl::KDLRobotModel> rm_;
         std::string planning_frame_;
         std::vector<std::string> gripper_links_;
@@ -146,15 +151,6 @@ namespace symplan {
         std::string robot_description_;
         smpl::PlanningParams planner_params_;
 
-        int num_threads_;
-        std::string robot_;
-        ros::NodeHandle nh_;
-        ros::NodeHandle ph_;
-        std::string problems_dir_;
-        std::unordered_map<std::string, double> cfg_;  // TODO: remove
-
-        smpl::VisualizerROS * visualizer_;
-
         moveit_msgs::RobotState start_state_;
         std::shared_ptr<smpl::PlannerInterface> planner_interface_;
         CollisionSpaceSceneMultithread cs_scene_;
@@ -162,7 +158,6 @@ namespace symplan {
         smpl::OccupancyGrid grid_;
         std::vector<smpl::OccupancyGrid *> grid_vec_;
         std::string attached_co_id_;
-        int index_width_;
     };
 }  // namespace symplan
 

@@ -46,7 +46,7 @@ using namespace symplan;
 Planner::Planner(ros::NodeHandle const & nh, ros::NodeHandle const & ph) :
   nh_(nh),
   ph_(ph),
-  index_width_(4) {
+  problem_index_width_(4) {
     if (VERBOSE) {
         ROS_INFO("Initialize visualizer");
     }
@@ -98,8 +98,8 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
         ROS_INFO("Load common parameters");
     }
 
-    robot_ = scene_common_msg.robot_model_name;
-    if (robot_ == "") {
+    robot_name_ = scene_common_msg.robot_model_name;
+    if (robot_name_ == "") {
         ROS_ERROR("Failed to retrieve param 'robot_model_name' from the scene configuration file"
         );
         return false;
@@ -205,11 +205,11 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
     }
 
     // TODO later: load these from the parameter server (specified in the launch file)
-    if (robot_ == "panda") {
+    if (robot_name_ == "panda") {
         gripper_links_.push_back("panda_hand");
         gripper_links_.push_back("panda_leftfinger");
         gripper_links_.push_back("panda_rightfinger");
-    } else if (robot_ == "fetch") {
+    } else if (robot_name_ == "fetch") {
         gripper_links_.push_back("gripper_link");
         gripper_links_.push_back("l_gripper_finger_link");
         gripper_links_.push_back("r_gripper_finger_link");
@@ -238,19 +238,6 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
     }
 
     cs_scene_.SetCollisionSpace(&cc_);
-
-    //// TODO: replace this with loading (before planning) the obstacles from
-    //// scene_common_msg.world.collision_objects
-    // std::string object_filename;
-    // ph_.param<std::string>("object_filename", object_filename, "");
-    //
-    // //Read in collision objects from file and add to the cs_scene_...
-    // if (!object_filename.empty()) {
-    //     auto objects = getCollisionObjects(object_filename, planning_frame_);
-    //     for (auto& object : objects) {
-    //         cs_scene_.ProcessCollisionObjectMsg(object);
-    //     }
-    // }
 
     if (!setupRobotModel(robot_description_, robot_config_)) {
         ROS_ERROR("Failed to set up Robot Model");
@@ -285,6 +272,7 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
         return false;
     }
 
+    // TODO later: move these in a separate function (setPlannerConfig)
     planner_params_.addParam("num_threads", num_threads_);
     planner_params_.addParam("discretization", planning_config_.discretization);
     planner_params_.addParam("mprim_filename", planning_config_.mprim_filename);
@@ -322,14 +310,39 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
 }
 
 bool Planner::planForProblem(int problem_index) {
-    if (request.goal_type.empty()) {
-        request.goal_type = "pose";
+    std::string goal_type;
+    if (!ph_.getParam("goal_type", goal_type)) {
+        ROS_ERROR("Failed to retrieve param 'goal_type' from the param server");
+        return false;
+    }
+
+    // Read the specified problem's parameters
+    moveit_msgs::PlanningScene scene_msg;
+    moveit_msgs::MotionPlanRequest request_msg;
+
+    if (!readProblemParamsMsgs(problems_dir_, problem_index, scene_msg, request_msg)) {
+        ROS_ERROR(
+          "Could not read problem %d's parameters. Are the contents of %s properly formatted?",
+          problem_index,
+          problems_dir_.c_str()
+        );
     }
 
     // TODO: load obstacles to scene
+    //// scene_common_msg.world.collision_objects
+    // std::string object_filename;
+    // ph_.param<std::string>("object_filename", object_filename, "");
+    //
+    // //Read in collision objects from file and add to the cs_scene_...
+    // if (!object_filename.empty()) {
+    //     auto objects = getCollisionObjects(object_filename, planning_frame_);
+    //     for (auto& object : objects) {
+    //         cs_scene_.ProcessCollisionObjectMsg(object);
+    //     }
+    // }
 
-    // Set start state TODO
-    if (!setStartState(request.start_state.joint_state.position.data())) {
+    // TODO: set start state
+    if (!setStartState(request_msg.start_state.joint_state.position.data())) {
         ROS_ERROR("Failed to set start state");
         return false;
     }
@@ -337,8 +350,7 @@ bool Planner::planForProblem(int problem_index) {
     // Set reference state for planning and collision
     if (!setPlanningAndCollisionReferenceState(start_state_)) {
         ROS_ERROR("Failed to set planning and collision reference state");
-        response.success = false;
-        return true;
+        return false;
     }
 
     // TODO: load this from request_msg.goal_constraints.joint_constraints...
@@ -347,32 +359,23 @@ bool Planner::planForProblem(int problem_index) {
     moveit_msgs::MotionPlanRequest req;
     moveit_msgs::MotionPlanResponse res;
 
-    if (cfg_.find("allowed_planning_time") != cfg_.end()) {
-        req.allowed_planning_time = cfg_["allowed_planning_time"];
-    } else {
-        ph_.param("allowed_planning_time", req.allowed_planning_time, 10.0);
-    }
-
     req.goal_constraints.resize(1);
-    if (!fillGoalConstraint(
-          goal,
-          planning_frame_,
-          req.goal_constraints[0],
-          request.goal_type
-        )) {
+    if (!fillGoalConstraint(goal, planning_frame_, req.goal_constraints[0], goal_type)) {
         ROS_ERROR("Failed to set goal constraints");
         return false;
     }
-    // TODO: load these from yaml configs
+    req.allowed_planning_time = request_msg.allowed_planning_time;
     req.group_name = robot_config_.group_name;
-    req.max_acceleration_scaling_factor = 1.0;
-    req.max_velocity_scaling_factor = 1.0;
-    req.num_planning_attempts = 1;
+    req.max_acceleration_scaling_factor = request_msg.max_acceleration_scaling_factor;
+    req.max_velocity_scaling_factor = request_msg.max_velocity_scaling_factor;
+    req.num_planning_attempts = request_msg.num_planning_attempts;
 
+    // Parse the planning algorithm string
+    // TODO later: move this someplace else (launchfile? call_planner?)
     std::string const algo = (cfg_["algorithm"] == 1) ? "arastar" : "epase";
-    if (request.goal_type == "pose") {
+    if (goal_type == "pose") {
         req.planner_id = algo + ".bfs.manip";
-    } else if (request.goal_type == "joints") {
+    } else if (goal_type == "joints") {
         req.planner_id = algo + ".joint_distance.manip";
     } else {
         ROS_ERROR("Goal type not identified!");
@@ -752,8 +755,8 @@ ros::NodeHandle & Planner::GetPh() {
     return ph_;
 }
 
-std::string Planner::GetRobot() {
-    return robot_;
+std::string Planner::GetRobotName() {
+    return robot_name_;
 }
 
 std::unordered_map<std::string, double> Planner::GetConfig() {
@@ -772,7 +775,8 @@ bool Planner::readProblemParamsMsgs(
 ) {
     // TODO: fill this
     std::ostringstream problem_index_ss;
-    problem_index_ss << std::setw(index_width_) << std::setfill('0') << problem_index << "\n";
+    problem_index_ss << std::setw(problem_index_width_) << std::setfill('0') << problem_index
+                     << "\n";
     std::string const scene_file = problems_dir + "/scene" + problem_index_ss.str() + ".yaml";
     std::string const request_file = problems_dir + "/request" + problem_index_ss.str()
                                      + ".yaml";
@@ -841,22 +845,20 @@ bool Planner::setupRobotModel(std::string const & urdf, RobotModelConfig const &
         return false;
     }
 
-    // To handle smpl bug where IK does not work without one call to FK
+    // // To handle smpl bug where IK does not work without one call to FK
     // std::vector<double> const joint_states =
-    //  {0.45274857, 0.58038735, -0.11977164, -1.9721714, 0.13661714, 2.5460937, 1.040775};
+    //   {0.45274857, 0.58038735, -0.11977164, -1.9721714, 0.13661714, 2.5460937, 1.040775};
     //
     // for (int tidx = 0; tidx < num_threads_; ++tidx) {
-    //    auto fk_solution = rm_->computeFK(joint_states, tidx);
+    //     auto fk_solution = rm_->computeFK(joint_states, tidx);
     // }
-
+    //
     // std::vector<double> solution;
-
-    // bool success = rm_->computeIK(fk_solution, joint_states,
-    // solution, smpl::ik_option::UNRESTRICTED); auto ea =
-    // fk_solution.rotation().eulerAngles(0,1,2); std::cout <<
-    // "Euler from quaternion in roll, pitch, yaw"<< '\n' <<
-    // ea << '\n'; std::cout << "pose " <<
-    // fk_solution.translation() << '\n';
+    //
+    // bool success = rm_->computeIK(fk_solution, joint_states, solution, smpl::ik_option::UNRESTRICTED);
+    // auto ea = fk_solution.rotation().eulerAngles(0, 1, 2);
+    // std::cout << "Euler from quaternion in roll, pitch, yaw" << '\n' << ea << '\n';
+    // std::cout << "pose " << fk_solution.translation() << '\n';
     return true;
 }
 

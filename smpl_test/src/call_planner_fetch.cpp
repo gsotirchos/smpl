@@ -183,17 +183,17 @@ int main(int argc, char * argv[]) {
     }  //========================================================
 
     // Let server(s) set up
-    ros::service::waitForService(symplan::Planner::planner_service_name);
-    ros::Duration(1.0).sleep();
+    // ros::service::waitForService(symplan::Planner::planner_service_name);
+    // ros::Duration(1.0).sleep();
 
     // Plan
-    auto planner_service_client = nh.serviceClient<sym_plan_msgs::RequestPlan>(
-      symplan::Planner::planner_service_name
-    );
+    // auto planner_service_client = nh.serviceClient<sym_plan_msgs::RequestPlan>(
+    //   symplan::Planner::planner_service_name
+    // );
 
-    if (!planner_service_client.call(planner_srv)) {
-        ROS_ERROR("Failed when calling the planner service.");
-    }
+    // if (!planner_service_client.call(planner_srv)) {
+    //     ROS_ERROR("Failed when calling the planner service.");
+    // }
 
     return 0;
 }
