@@ -33,12 +33,18 @@
         <!-- planner parameters -->
         <rosparam command="load" file="$(find smpl_test)/config/franka_arm.yaml"/>
         <param name="planning/mprim_filename" value="$(find smpl_test)/config/franka.mprim"/>
+
         <param name="planning_problems_directory" value="$(find robowflex_library)/problems/panda/bookshelf_small_panda"/>
-        <param name="planning_problem_index" value="1"/>
+        <param name="planning_problem_index_start" value="1"/>
+        <param name="planning_problem_index_end" value="2"/>
+        <param name="planning_problem_index_width" value="4"/>
 
         <param name="planning_algorithm" value="epase"/>  <!-- options: arastar, epase -->
         <param name="goal_type" value="joints"/>  <!-- options: joints, pose -->
         <param name="num_threads" value="4"/>
         <param name="planning_frame" value="odom_combined"/>
+
+        <param name="verbose" value="true"/>
+        <param name="repeat_animation" value="false"/>
     </node>
 </launch>

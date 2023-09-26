@@ -1,5 +1,4 @@
 // standard includes
-// #include <Eigen/src/Core/MatrixBase.h>
 #include <moveit_msgs/AllowedCollisionEntry.h>
 #include <moveit_msgs/MotionPlanRequest.h>
 #include <smpl/planning_params.h>
@@ -24,20 +23,19 @@
 #include "planner.h"
 
 
-constexpr bool VERBOSE = true;
-
-
 // Public
 
 Planner::Planner(
   ros::NodeHandle const & nh,
   ros::NodeHandle const & ph,
-  int problem_index_width
+  bool verbose,
+  bool repeat_animation
 ) :
   nh_(nh),
   ph_(ph),
-  problem_index_width_(problem_index_width) {
-    if (VERBOSE) {
+  verbose_(verbose),
+  repeat_animation_(repeat_animation) {
+    if (verbose_) {
         ROS_INFO("Initialize visualizer");
     }
     smpl::VisualizerROS * visualizer_ = new smpl::VisualizerROS(nh_, 100);
@@ -50,6 +48,51 @@ Planner::~Planner() {
 
 bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
     problems_dir_ = problems_dir;
+
+    // Read the problems' index width (e.g. scene0007.yaml -> 4)
+    if (!ph_.getParam("planning_problem_index_width", problem_index_width_)) {
+        ROS_ERROR("Failed to read 'planning_problem_index_width' from the param server");
+        return false;
+    }
+
+    if (!ph_.getParam("planning_algorithm", planning_algorithm_)) {
+        ROS_ERROR("Failed to retrieve param 'planning_algorithm' from the param server");
+        return false;
+    }
+    if (verbose_) {
+        ROS_INFO("planning_algorithm: %s \n", planning_algorithm_.c_str());
+    }
+
+    if (!ph_.getParam("goal_type", goal_type_)) {
+        ROS_ERROR("Failed to retrieve param 'goal_type' from the param server");
+        return false;
+    }
+
+    if (!ph_.getParam("num_threads", num_threads_)) {
+        ROS_ERROR("Failed to retrieve param 'num_threads' from the param server");
+        return false;
+    }
+    if (verbose_) {
+        ROS_INFO("num_threads: %d \n", num_threads_);
+    }
+
+    // Everyone needs to know the name of the planning frame for
+    // reasons...
+    // ...frame_id for the occupancy grid (for visualization)
+    // ...frame_id for collision objects (must be the same as the
+    // grid, other than that, useless)
+    if (!ph_.getParam("planning_frame", planning_frame_)) {
+        ROS_ERROR("Failed to retrieve param 'planning_frame' from the param server");
+        return false;
+    }
+
+    /////////////////
+    // Robot Model //
+    /////////////////
+
+    if (verbose_) {
+        ROS_INFO("Load common parameters");
+    }
 
     // Read an arbitrary problem's parameters (to get the common parameters)
     int const arbitrary_problem_index = 1;
@@ -70,40 +113,6 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
           arbitrary_problem_index,
           problems_dir_.c_str()
         );
-    }
-
-    if (!ph_.getParam("planning_algorithm", planning_algorithm_)) {
-        ROS_ERROR("Failed to retrieve param 'planning_algorithm' from the param server");
-        return false;
-    }
-    if (VERBOSE) {
-        ROS_INFO("planning_algorithm: %s \n", planning_algorithm_.c_str());
-    }
-
-    if (!ph_.getParam("num_threads", num_threads_)) {
-        ROS_ERROR("Failed to retrieve param 'num_threads' from the param server");
-        return false;
-    }
-    if (VERBOSE) {
-        ROS_INFO("num_threads: %d \n", num_threads_);
-    }
-
-    // Everyone needs to know the name of the planning frame for
-    // reasons...
-    // ...frame_id for the occupancy grid (for visualization)
-    // ...frame_id for collision objects (must be the same as the
-    // grid, other than that, useless)
-    if (!ph_.getParam("planning_frame", planning_frame_)) {
-        ROS_ERROR("Failed to retrieve param 'planning_frame' from the param server");
-        return false;
-    }
-
-    /////////////////
-    // Robot Model //
-    /////////////////
-
-    if (VERBOSE) {
-        ROS_INFO("Load common parameters");
     }
 
     robot_name_ = scene_common_msg.robot_model_name;
@@ -135,13 +144,12 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
         ROS_ERROR("Failed to set up Robot Model");
         return false;
     }
-    ROS_ERROR("%s \n", rm_->getBaseLink().c_str());
 
     ////////////////////
     // Occupancy Grid //
     ////////////////////
 
-    if (VERBOSE) {
+    if (verbose_) {
         ROS_INFO("Initialize Occupancy Grid");
     }
 
@@ -188,7 +196,7 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
     // Initialize Collision Checker //
     //////////////////////////////////
 
-    if (VERBOSE) {
+    if (verbose_) {
         ROS_INFO("Initialize collision checker");
     }
 
@@ -229,7 +237,7 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
     // Setup Scene //
     /////////////////
 
-    if (VERBOSE) {
+    if (verbose_) {
         ROS_INFO("Initialize scene");
     }
 
@@ -261,7 +269,6 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
     }
 
     // Set up planner interface
-    // TODO?: This also exists in plan(); which should I keep?
     planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
     if (!planner_interface_->init(planner_params_)) {
         ROS_ERROR("Failed to initialize Planner Interface");
@@ -274,12 +281,6 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
 }
 
 bool Planner::planForProblem(int problem_index) {
-    std::string goal_type;
-    if (!ph_.getParam("goal_type", goal_type)) {
-        ROS_ERROR("Failed to retrieve param 'goal_type' from the param server");
-        return false;
-    }
-
     // Read the specified problem's parameters
     moveit_msgs::MotionPlanRequest request_msg;
     if (!loadYamlToMsg(problems_dir_, problem_index, request_msg)) {
@@ -317,9 +318,9 @@ bool Planner::planForProblem(int problem_index) {
     }
 
     // Set planning algorithm id
-    if (goal_type == "pose") {
+    if (goal_type_ == "pose") {
         request_msg.planner_id = planning_algorithm_ + ".bfs.manip";
-    } else if (goal_type == "joints") {
+    } else if (goal_type_ == "joints") {
         request_msg.planner_id = planning_algorithm_ + ".joint_distance.manip";
     } else {
         ROS_ERROR("Goal type not identified!");
@@ -327,16 +328,14 @@ bool Planner::planForProblem(int problem_index) {
     }
 
     // Set up planner interface
-    // TODO?: This also exists in loadProblemCommonParams(); which should I keep?
     // planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
     // if (!planner_interface_->init(planner_params_)) {
     //     ROS_ERROR("Failed to initialize Planner Interface");
     //     return false;
     // }
-    //===========================================================================
 
     // plan
-    if (VERBOSE) {
+    if (verbose_) {
         ROS_INFO("Calling solve...");
     }
 
@@ -352,14 +351,16 @@ bool Planner::planForProblem(int problem_index) {
 
     auto planning_stats = planner_interface_->getPlannerStats();
 
-    if (VERBOSE) {
+    if (verbose_) {
         ROS_INFO("Planning statistics");
         for (auto & entry : planning_stats) {
             ROS_INFO("    %s: %0.3f", entry.first.c_str(), entry.second);
         }
     }
 
-    VisualizePath(res.trajectory);
+    if (verbose_) {
+        VisualizePath(res.trajectory);
+    }
 
     return true;
 }
@@ -369,7 +370,7 @@ bool Planner::ProcessCollisionObjects(
   moveit_msgs::CollisionObject::_operation_type operation
 ) {
     for (auto & object : objects) {
-        if (VERBOSE) {
+        if (verbose_) {
             std::cout << " collision object: " << std::string(object.id) << object.operation
                       << '\n';
         }
@@ -379,14 +380,14 @@ bool Planner::ProcessCollisionObjects(
 
         for (int tidx = 0; tidx < num_threads_; ++tidx) {
             if (!cs_scene_.ProcessCollisionObjectMsg(tidx, object)) {
-                if (VERBOSE) {
+                if (verbose_) {
                     std::cout << "Could not " << object.operation << " collision object "
                               << std::string(object.id) << " for thread " << tidx << '\n';
                     return false;
                 }
             } else {
-                if (VERBOSE) {
-                    std::cout << "Successfully " << object.operation << "ed collision object "
+                if (verbose_) {
+                    std::cout << "Successfully processed collision object "
                               << std::string(object.id) << " for thread " << tidx << '\n';
                 }
             }
@@ -457,8 +458,8 @@ void Planner::VisualizeCollisionWorld() {
     SV_SHOW_INFO(occupied_voxels);
 }
 
-void Planner::VisualizePath(moveit_msgs::RobotTrajectory trajectory, bool repeat) {
-    if (VERBOSE) {
+void Planner::VisualizePath(moveit_msgs::RobotTrajectory trajectory) {
+    if (verbose_) {
         ROS_INFO("Animate path");
     }
 
@@ -474,7 +475,7 @@ void Planner::VisualizePath(moveit_msgs::RobotTrajectory trajectory, bool repeat
         point_idx++;
         point_idx %= static_cast<int>(trajectory.joint_trajectory.points.size());
 
-        if (!repeat) {
+        if (!repeat_animation_) {
             break;
         }
     }
@@ -528,7 +529,7 @@ bool Planner::setupRobotModel(std::string const & urdf, RobotModelConfig const &
         return false;
     }
 
-    if (VERBOSE) {
+    if (verbose_) {
         ROS_INFO("Construct Generic KDL Robot Model");
     }
     rm_ = std::make_shared<smpl::KDLRobotModel>();
@@ -571,7 +572,7 @@ bool Planner::setPlanningAndCollisionReferenceState(
             );
             continue;
         }
-        if (VERBOSE) {
+        if (verbose_) {
             ROS_INFO(
               "Set joint %s to %f",
               state.joint_state.name[i].c_str(),

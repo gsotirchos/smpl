@@ -46,7 +46,8 @@ class Planner {
     Planner(
       ros::NodeHandle const & nh,
       ros::NodeHandle const & ph,
-      int problem_index_width = 4
+      bool verbose = false,
+      bool repeat_animation = false
     );
     ~Planner();
 
@@ -66,7 +67,7 @@ class Planner {
     // );
 
     void VisualizeCollisionWorld();
-    void VisualizePath(moveit_msgs::RobotTrajectory trajectory, bool repeat = true);
+    void VisualizePath(moveit_msgs::RobotTrajectory trajectory);
 
   private:
     template<typename message_T>
@@ -86,11 +87,14 @@ class Planner {
 
     ros::NodeHandle nh_;
     ros::NodeHandle ph_;
+    bool verbose_;
+    bool repeat_animation_;
     smpl::VisualizerROS * visualizer_;
 
     std::string problems_dir_;
     int problem_index_width_;
     std::string planning_algorithm_;
+    std::string goal_type_;
     int num_threads_;
     std::string planning_frame_;
 
