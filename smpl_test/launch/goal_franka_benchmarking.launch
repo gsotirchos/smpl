@@ -19,46 +19,29 @@
 
     <!-- 1. call planner -->
     <node pkg="smpl_test" type="callPlannerFetch" name="call_planner_fetch" launch-prefix="$(arg launch-prefix)" args="$(arg args)">
-        <param name="planning_frame" value="odom_combined"/>  <!-- TODO: keep! -->
-
         <!-- robot model (for planning) -->
-        <!-- TODO: keep (only kinematics_frame & chain_tip_link & gripper_links) -->
         <rosparam param="robot_model">
-            group_name: manipulator
-            planning_joints:
-                panda_joint1
-                panda_joint2
-                panda_joint3
-                panda_joint4
-                panda_joint5
-                panda_joint6
-                panda_joint7
             kinematics_frame:
                 panda_link0
+                <!-- base_link -->
             chain_tip_link:
                 panda_hand
-            gripper_links:
-                panda_hand
-                panda_leftfinger
-                panda_rightfinger
+                <!-- gripper_link -->
         </rosparam>
 
         <!-- collision checking -->
-        <!-- TODO: remove -->
+        <!-- TODO: update -->
         <rosparam command="load" file="$(find sbpl_collision_checking_test)/config/collision_model_franka.yaml"/>
 
         <!-- planner params -->
         <rosparam command="load" file="$(find smpl_test)/config/franka_arm.yaml"/>
         <param name="planning/mprim_filename" value="$(find smpl_test)/config/franka.mprim"/>
+        <param name="planning_problems_directory" value="$(find robowflex_library)/problems/panda/bookshelf_small_panda"/>
+        <param name="planning_problem_index" value="1"/>
+
+        <param name="planning_algorithm" value="epase"/>  <!-- options: arastar, epase -->
+        <param name="goal_type" value="joints"/>  <!-- options: joints, pose -->
         <param name="num_threads" value="4"/>
-        <param name="goal_type" value="joints"/>  <!-- "joints" / "pose" -->
-
-        <!-- robot state -->
-        <!-- TODO: remove -->
-        <rosparam command="load" file="$(find smpl_test)/experiments/franka_goal_shelf.yaml"/>
-
-        <!-- world state -->
-        <!-- TODO: remove -->
-        <param name="object_filename" value="$(find smpl_test)/env/shelf.env"/>
+        <param name="planning_frame" value="odom_combined"/>
     </node>
 </launch>
