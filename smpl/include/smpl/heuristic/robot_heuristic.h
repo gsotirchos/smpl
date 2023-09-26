@@ -64,8 +64,10 @@ public:
     ///
     /// This distance is used by the manipulation lattice to determine whether
     /// to activate context-aware actions.
-    virtual double getMetricStartDistance(double x, double y, double z, int tidx)
-    {SMPL_ERROR("Multi-threaded getMetricStartDistance not implemented");};
+    virtual double getMetricStartDistance(double x, double y, double z, int tidx) {
+        SMPL_WARN("Multi-threaded getMetricStartDistance not implemented");
+        return getMetricStartDistance(x, y, z);
+    };
     virtual double getMetricStartDistance(double x, double y, double z) = 0;
 
     /// \brief Return the heuristic distance of the planning link to the goal.
@@ -79,8 +81,10 @@ public:
 
     /// \name Restate Required Public Functions from Heuristic
     ///@{
-    virtual int GetGoalHeuristic(int state_id, int tidx)
-    {SMPL_ERROR("Multi-threaded GetGoalHeuristic not implemented");};
+    virtual int GetGoalHeuristic(int state_id, int tidx) {
+        SMPL_WARN("Multi-threaded GetGoalHeuristic not implemented");
+        return GetGoalHeuristic(state_id);
+    };
     virtual int GetGoalHeuristic(int state_id) = 0;
     virtual int GetStartHeuristic(int state_id) = 0;
     virtual int GetFromToHeuristic(int from_id, int to_id) = 0;
