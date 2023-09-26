@@ -48,8 +48,8 @@ add_executable(callPlannerArastar src/call_planner_arastar.cpp src/collision_spa
 target_link_libraries(callPlannerArastar ${catkin_LIBRARIES} smpl::smpl)
 
 # TODO
-add_executable(callPlannerFetch src/call_planner_fetch.cpp src/planner.cpp src/collision_space_scene_multithread.cpp)
-target_link_libraries(callPlannerFetch ${catkin_LIBRARIES} smpl::smpl)
+add_executable(callPlannerBenchmarking src/call_planner_benchmarking.cpp src/planner.cpp src/collision_space_scene_multithread.cpp)
+target_link_libraries(callPlannerBenchmarking ${catkin_LIBRARIES} smpl::smpl)
 #
 add_executable(evaluateEpase src/evaluate_epase.cpp src/collision_space_scene_multithread.cpp)
 target_link_libraries(evaluateEpase ${catkin_LIBRARIES} smpl::smpl)
