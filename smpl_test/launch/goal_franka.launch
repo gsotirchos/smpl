@@ -12,7 +12,7 @@
 
         <!-- 1. robot model (for planning) -->
         <rosparam param="robot_model">
-            group_name: manipulator
+            group_name: panda_arm
             planning_joints:
                 panda_joint1
                 panda_joint2

@@ -135,7 +135,7 @@ robot_collision_model:
 #  voxels_models:
 #    - link_name: world
   collision_groups:
-    - name: manipulator
+    - name: panda_arm
       # chains:
       #   - base: panda_link0
       #     tip: panda_link6
