@@ -12,6 +12,7 @@
     <arg unless="$(arg fullscreen)" name="rviz-fullscreen" value=""/>
     <arg     if="$(arg fullscreen)" name="rviz-fullscreen" value="--fullscreen"/>
 
+    <!-- robot description -->
     <param name="robot_description" command="$(find xacro)/xacro '$(find franka_description)/robots/panda/panda.urdf.xacro' hand:=true"/>
 
     <!-- 0. RViz -->
@@ -36,7 +37,7 @@
 
         <param name="planning_problems_directory" value="$(find robowflex_library)/problems/panda/bookshelf_small_panda"/>
         <param name="planning_problem_index_start" value="1"/>
-        <param name="planning_problem_index_end" value="2"/>
+        <param name="planning_problem_index_end" value="1"/>
         <param name="planning_problem_index_width" value="4"/>
 
         <param name="planning_algorithm" value="epase"/>  <!-- options: arastar, epase -->
@@ -45,6 +46,6 @@
         <param name="planning_frame" value="odom_combined"/>
 
         <param name="verbose" value="true"/>
-        <param name="repeat_animation" value="false"/>
+        <param name="visualize" value="false"/>  <!-- TODO: depend on rviz arg -->
     </node>
 </launch>

@@ -24,4 +24,5 @@
 
     <exec_depend>pr2_description</exec_depend>
     <exec_depend>franka_description</exec_depend>
+    <exec_depend>fetch_description</exec_depend>
 </package>
