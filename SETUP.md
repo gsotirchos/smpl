@@ -64,13 +64,9 @@ catkin config --cmake-args \
 catkin build -j 3
 ```
 
-<aside>
-💡 Compile for Release with Debug messages:
-`RelWithDebInfo`
+💡 Compile for Release with Debug messages: `RelWithDebInfo`
 
 In case there are dependencies still missing  you can install them as requested by each error.
-
-</aside>
 
 ## Get the pre-generated problems dataset
 
