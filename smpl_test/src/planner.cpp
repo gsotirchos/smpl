@@ -23,27 +23,72 @@
 #include "planner.h"
 
 
-// Public
+// Public //
 
 Planner::Planner(
   ros::NodeHandle const & nh,
   ros::NodeHandle const & ph,
   bool verbose,
-  bool repeat_animation
+  bool visualize
 ) :
   nh_(nh),
   ph_(ph),
   verbose_(verbose),
-  repeat_animation_(repeat_animation) {
+  visualize_(visualize),
+  separator_(", ") {
+    // TODO: add date to file name
+    std::string const results_file_path = "/tmp/planning_benchmarks_.csv";
+
+    if (verbose_) {
+        ROS_INFO("Open new results file: %s", results_file_path.c_str());
+    }
+
+    results_file_.open(results_file_path);
+
+    results_file_
+      << "edge_expansions" << separator_ << "expansions" << separator_ << "final epsilon"
+      << separator_ << "final epsilon planning time" << separator_ << "initial epsilon"
+      << separator_ << "initial solution expansions" << separator_
+      << "initial solution planning time" << separator_ << "solution cost" << separator_
+      << "solution epsilon" << separator_ << "state_expansions" << separator_ << "time"
+      << std::endl;
+
     if (verbose_) {
         ROS_INFO("Initialize visualizer");
     }
+
+    // TODO later: unnecessary???
+    // Wait for an RViz instance
+    // while (visualize_ && !rvizIsRunning()) {
+    //     if (verbose_) {
+    //         ROS_INFO("Waiting for RViz instance to start before instantiating a planner...");
+    //     }
+    //     ros::Duration(0.5).sleep();
+    // }
+
     smpl::VisualizerROS * visualizer_ = new smpl::VisualizerROS(nh_, 100);
     smpl::viz::set_visualizer(visualizer_);
 }
 
 Planner::~Planner() {
+    results_file_.close();
     delete visualizer_;
+}
+
+// TODO later: unnecessary???
+bool Planner::rvizIsRunning() {
+    ros::V_string node_names;
+
+    if (!ros::master::getNodes(node_names)) {
+        ROS_WARN("Failed to get nodes names. Is roscore running?");
+        return false;
+    }
+
+    if (!std::count(node_names.begin(), node_names.end(), "/rviz")) {
+        return false;
+    }
+
+    return true;
 }
 
 bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
@@ -358,7 +403,16 @@ bool Planner::planForProblem(int problem_index) {
         }
     }
 
-    if (verbose_) {
+    // Write planning stats to results file
+    for (auto iter = planning_stats.begin(); iter != planning_stats.end(); iter++) {
+        results_file_ << iter->second;
+        if (std::next(iter) != planning_stats.end()) {
+            results_file_ << separator_;
+        }
+    }
+    results_file_ << std::endl;
+
+    if (visualize_) {
         VisualizePath(res.trajectory);
     }
 
@@ -474,15 +528,11 @@ void Planner::VisualizePath(moveit_msgs::RobotTrajectory trajectory) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         point_idx++;
         point_idx %= static_cast<int>(trajectory.joint_trajectory.points.size());
-
-        if (!repeat_animation_) {
-            break;
-        }
     }
 }
 
 
-// Private
+// Private //
 
 template<typename T>
 bool Planner::loadYamlToMsg(std::string const & problems_dir, int problem_index, T & msg) {

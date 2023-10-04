@@ -2,6 +2,7 @@
 #define PLANNER_H
 
 // standard includes
+#include <fstream>
 #include <moveit_msgs/MotionPlanRequest.h>
 #include <ros/node_handle.h>
 #include <string>
@@ -20,6 +21,7 @@
 
 // project includes
 #include "collision_space_scene_multithread.h"
+
 
 struct RobotModelConfig {
     std::string group_name;
@@ -47,10 +49,11 @@ class Planner {
       ros::NodeHandle const & nh,
       ros::NodeHandle const & ph,
       bool verbose = false,
-      bool repeat_animation = false
+      bool visualize = false
     );
     ~Planner();
 
+    bool rvizIsRunning();
     bool loadProblemCommonParams(std::string const & problems_dir);
     bool planForProblem(int problem_index);
     bool ProcessCollisionObjects(
@@ -88,7 +91,13 @@ class Planner {
     ros::NodeHandle nh_;
     ros::NodeHandle ph_;
     bool verbose_;
-    bool repeat_animation_;
+    bool visualize_;
+    // std::unique_ptr<std::ofstream> results_file_;
+    // std::unique_ptr<std::ofstream> results_file_ = std::unique_ptr<std::ofstream>(
+    //   new std::ofstream()
+    // );
+    std::ofstream results_file_;
+    std::string separator_;
     smpl::VisualizerROS * visualizer_;
 
     std::string problems_dir_;

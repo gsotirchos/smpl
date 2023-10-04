@@ -6,20 +6,6 @@
 
 #include "planner.h"
 
-bool rvizIsRunning() {
-    ros::V_string node_names;
-
-    if (!ros::master::getNodes(node_names)) {
-        ROS_WARN("Failed to get nodes names. Is roscore running?");
-        return false;
-    }
-
-    if (!std::count(node_names.begin(), node_names.end(), "/rviz")) {
-        return false;
-    }
-
-    return true;
-}
 
 int main(int argc, char * argv[]) {
     ros::init(argc, argv, "smpl_test");
@@ -32,9 +18,9 @@ int main(int argc, char * argv[]) {
         return 1;
     }
 
-    bool repeat_animation;
-    if (!ph.getParam("repeat_animation", repeat_animation)) {
-        ROS_ERROR("Failed to read 'repeat_animation' from the param server");
+    bool visualize;
+    if (!ph.getParam("visualize", visualize)) {
+        ROS_ERROR("Failed to read 'visualize' from the param server");
         return 1;
     }
 
@@ -57,13 +43,8 @@ int main(int argc, char * argv[]) {
         return 1;
     }
 
-    // Wait for an RViz instance
-    while (!rvizIsRunning()) {
-        ROS_INFO("Waiting for RViz instance to start before instantiating a planner...");
-        ros::Duration(0.5).sleep();
-    }
 
-    Planner planner(nh, ph, verbose, repeat_animation);
+    Planner planner(nh, ph, verbose, visualize);
 
     if (!planner.loadProblemCommonParams(problems_dir)) {
         ROS_ERROR(
@@ -83,8 +64,6 @@ int main(int argc, char * argv[]) {
             ROS_ERROR("Planning successful for problem no. %d.", i);
         }
     }
-
-    ros::spin();
 
     return 0;
 }
