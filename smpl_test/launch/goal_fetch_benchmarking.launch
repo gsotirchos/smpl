@@ -29,25 +29,24 @@
         </rosparam>
 
         <!-- collision checking -->
-        <!-- TODO: update contents -->
         <rosparam command="load" file="$(find sbpl_collision_checking_test)/config/collision_model_fetch.yaml"/>
 
         <!-- planner parameters -->
-        <!-- TODO: update contents -->
         <rosparam command="load" file="$(find smpl_test)/config/fetch_arm.yaml"/>
+        <!-- TODO: check linear motion primitives' units -->
         <param name="planning/mprim_filename" value="$(find smpl_test)/config/fetch.mprim"/>
 
         <param name="planning_problems_directory" value="$(find robowflex_library)/problems/fetch/bookshelf_small_fetch"/>
-        <param name="planning_problem_index_start" value="3"/>
-        <param name="planning_problem_index_end" value="5"/>
+        <param name="planning_problem_index_start" value="1"/>
+        <param name="planning_problem_index_end" value="1"/>
         <param name="planning_problem_index_width" value="4"/>
 
-        <param name="planning_algorithm" value="epase"/>  <!-- options: arastar, epase -->
+        <param name="planning_algorithm" value="arastar"/>  <!-- options: arastar, epase -->
         <param name="goal_type" value="joints"/>  <!-- options: joints, pose -->
         <param name="num_threads" value="4"/>
         <param name="planning_frame" value="odom_combined"/>
 
         <param name="verbose" value="true"/>
-        <param name="visualize" value="false"/>  <!-- TODO: depend on rviz arg -->
+        <param name="visualize" value="true"/>  <!-- TODO: depend on rviz arg -->
     </node>
 </launch>
