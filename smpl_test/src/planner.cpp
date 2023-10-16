@@ -57,7 +57,7 @@ Planner::Planner(
         ROS_INFO("Initialize visualizer");
     }
 
-    // TODO later: unnecessary???
+    // TODO later: unnecessary now???
     // Wait for an RViz instance
     // while (visualize_ && !rvizIsRunning()) {
     //     if (verbose_) {
@@ -66,7 +66,7 @@ Planner::Planner(
     //     ros::Duration(0.5).sleep();
     // }
 
-    smpl::VisualizerROS * visualizer_ = new smpl::VisualizerROS(nh_, 100);
+    visualizer_ = new smpl::VisualizerROS(nh_, 100);
     smpl::viz::set_visualizer(visualizer_);
 }
 
@@ -201,19 +201,18 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
     double df_size_x, df_size_y, df_size_z, df_res, df_origin_x, df_origin_y, df_origin_z,
       max_distance;
 
-    // !!ASSUMPTION: all problems share the same start state
-    auto ee_position = rm_->computeFK(request_common_msg.start_state.joint_state.position)
-                         .translation();
+    // auto ee_position = rm_->computeFK(request_common_msg.start_state.joint_state.position)
+    //                      .translation();
 
-    df_size_x = ee_position.x() + request_common_msg.workspace_parameters.max_corner.x
+    df_size_x = request_common_msg.workspace_parameters.max_corner.x
                 - request_common_msg.workspace_parameters.min_corner.x;
-    df_size_y = ee_position.y() + request_common_msg.workspace_parameters.max_corner.y
+    df_size_y = request_common_msg.workspace_parameters.max_corner.y
                 - request_common_msg.workspace_parameters.min_corner.y;
-    df_size_z = ee_position.z() + request_common_msg.workspace_parameters.max_corner.z
+    df_size_z = request_common_msg.workspace_parameters.max_corner.z
                 - request_common_msg.workspace_parameters.min_corner.z;
-    df_origin_x = ee_position.x() + request_common_msg.workspace_parameters.min_corner.x;
-    df_origin_y = ee_position.y() + request_common_msg.workspace_parameters.min_corner.y;
-    df_origin_z = ee_position.z() + request_common_msg.workspace_parameters.min_corner.z;
+    df_origin_x = - df_size_x / 2;
+    df_origin_y = - df_size_y / 2;
+    df_origin_z = 0.0;
     df_res = 0.02;       // TODO later:
     max_distance = 1.8;  // set these externally(?)
 
@@ -320,7 +319,9 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
         return false;
     }
 
-    VisualizeCollisionWorld();
+    if (visualize_) {
+        VisualizeCollisionWorld();
+    }
 
     return true;
 }
@@ -328,6 +329,7 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
 bool Planner::planForProblem(int problem_index) {
     // Read the specified problem's parameters
     moveit_msgs::MotionPlanRequest request_msg;
+    moveit_msgs::PlanningScene scene_msg;
     if (!loadYamlToMsg(problems_dir_, problem_index, request_msg)) {
         ROS_ERROR(
           "Could not read problem %d's request message. Are the contents of %s properly formatted?",
@@ -335,8 +337,6 @@ bool Planner::planForProblem(int problem_index) {
           problems_dir_.c_str()
         );
     }
-
-    moveit_msgs::PlanningScene scene_msg;
     if (!loadYamlToMsg(problems_dir_, problem_index, scene_msg)) {
         ROS_ERROR(
           "Could not read problem %d's scene message. Are the contents of %s properly formatted?",
@@ -345,20 +345,20 @@ bool Planner::planForProblem(int problem_index) {
         );
     }
 
-    // Remove all previous collision objects from scene and add those of the current problem
-    if (!prepareCSSceneCollisionObjects(scene_msg.world.collision_objects)) {
-        ROS_ERROR(
-          "Failed to prepare collision space scene with the problem's collision objects"
-        );
-        return false;
-    }
-
     // Set reference state for planning and collision
     if (!setPlanningAndCollisionReferenceState(
           request_msg.start_state,
           scene_msg.fixed_frame_transforms
         )) {
         ROS_ERROR("Failed to set planning and collision reference state");
+        return false;
+    }
+
+    // Remove all previous collision objects from scene and add those of the current problem
+    if (!prepareCSSceneCollisionObjects(scene_msg.world.collision_objects)) {
+        ROS_ERROR(
+          "Failed to prepare collision space scene with the problem's collision objects"
+        );
         return false;
     }
 
@@ -388,7 +388,11 @@ bool Planner::planForProblem(int problem_index) {
     moveit_msgs::PlanningScene planning_scene;
     planning_scene.robot_state = request_msg.start_state;
 
-    auto plan_found = planner_interface_->solve(moveit_msgs::PlanningScene{}, request_msg, res);
+    // planner_interface_->checkStart(planning_scene, request_msg, res);
+    // VisualizeCollisionWorld();
+    // return true;
+
+    auto plan_found = planner_interface_->solve(planning_scene, request_msg, res);
     if ((!plan_found) || (res.trajectory.joint_trajectory.points.size() == 0)) {
         ROS_ERROR("Failed to plan");
         return false;
@@ -413,6 +417,7 @@ bool Planner::planForProblem(int problem_index) {
     results_file_ << std::endl;
 
     if (visualize_) {
+        VisualizeCollisionWorld();
         VisualizePath(res.trajectory);
     }
 
@@ -435,20 +440,16 @@ bool Planner::ProcessCollisionObjects(
         for (int tidx = 0; tidx < num_threads_; ++tidx) {
             if (!cs_scene_.ProcessCollisionObjectMsg(tidx, object)) {
                 if (verbose_) {
-                    std::cout << "Could not " << object.operation << " collision object "
-                              << std::string(object.id) << " for thread " << tidx << '\n';
+                    ROS_ERROR("Could not process collision object %s for thread %d", object.id.c_str(), tidx);
                     return false;
                 }
             } else {
                 if (verbose_) {
-                    std::cout << "Successfully processed collision object "
-                              << std::string(object.id) << " for thread " << tidx << '\n';
+                    ROS_INFO("Successfully processed collision object %s for thread %d", object.id.c_str(), tidx);
                 }
             }
         }
     }
-
-    VisualizeCollisionWorld();
 
     std::cout << "All collision objects successfully processed!" << '\n';
 
@@ -459,7 +460,7 @@ bool Planner::prepareCSSceneCollisionObjects(std::vector<moveit_msgs::CollisionO
 ) {
     // Remove any previous collision objects from scene
     if (!ProcessCollisionObjects(collision_objects_, moveit_msgs::CollisionObject::REMOVE)) {
-        ROS_ERROR("Failed to remove all previour collision objects from scene");
+        ROS_ERROR("Failed to remove all previous collision objects from scene");
         return false;
     }
 
@@ -467,8 +468,13 @@ bool Planner::prepareCSSceneCollisionObjects(std::vector<moveit_msgs::CollisionO
     if (!ProcessCollisionObjects(objects, moveit_msgs::CollisionObject::ADD)) {
         ROS_ERROR("Failed to add all collision objects to planning scene");
         return false;
+    } else {
+        collision_objects_ = objects;
     }
-    collision_objects_ = objects;
+
+    if (visualize_) {
+        VisualizeCollisionWorld();
+    }
 
     return true;
 }
