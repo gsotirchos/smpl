@@ -206,10 +206,15 @@ int ARAStar::replan(
             extractPath(next_state, *solution, *cost);
             return !SUCCESS;
         }
+        //===================
+        saveExploredStates();
+        //===================
         return !err;
     }
 
+    //===================
     saveExploredStates();
+    //===================
 
     extractPath(goal_state, *solution, *cost);
     return !SUCCESS;
@@ -648,33 +653,27 @@ void ARAStar::extractPath(
 //==============================================================
 auto ARAStar::saveExploredStates() const -> void
 {
-    std::ofstream outFile("../states_and_costs.csv");
+    std::ofstream outFile("states_and_costs.csv");  // ~/.ros/states_and_costs.csv
     auto const & mlspace = dynamic_cast<ManipLattice *>(m_space);
     Eigen::Affine3d pose;
 
-    std::string separator = ",";
-    std::string header = "cost" + separator
-                         + "q1" + separator
-                         + "q2" + separator
-                         + "q3" + separator
-                         + "q4" + separator
-                         + "q5" + separator
-                         + "q6" + separator
-                         + "q7" + separator
-                         + "x" + separator
-                         + "y" + separator
-                         + "z";
+    std::string const separator = ",";
+    std::string header = "cost" + separator;
+    for (unsigned int i = 1; i < (mlspace->extractState((*m_explored_states.begin())->state_id)).size() + 1; i++) {
+        header += "q" + std::to_string(i) + separator;
+    }
+    header += "x" + separator + "y" + separator + "z";
 
     outFile << header << "\n";  // add header
 
-    // Save collision states
-    for (const auto & state : mlspace->m_collision_states) {
-        outFile << "-1" << separator;  // cost indicating collision
-        for (const auto & joint_angle : state) {
+    // Save explored states
+    for (const auto & state : m_explored_states) {
+        outFile << std::to_string(state->g) << separator;  // cost indicating collision
+        for (const auto & joint_angle : mlspace->extractState(state->state_id)) {
             outFile << std::to_string(joint_angle) << separator;
         }
 
-        mlspace->projectToPose(state, pose);
+        mlspace->projectToPose(state->state_id, pose);
         outFile << std::to_string(pose.translation().x()) << separator
                 << std::to_string(pose.translation().y()) << separator
                 << std::to_string(pose.translation().z());
@@ -686,14 +685,14 @@ auto ARAStar::saveExploredStates() const -> void
         outFile << "\n";
     }
 
-    // Save explored states
-    for (const auto & state : m_explored_states) {
-        outFile << std::to_string(state->g) << separator;  // cost indicating collision
-        for (const auto & joint_angle : mlspace->extractState(state->state_id)) {
+    // Save collision states
+    for (const auto & state : mlspace->m_collision_states) {
+        outFile << "-1" << separator;  // cost indicating collision
+        for (const auto & joint_angle : state) {
             outFile << std::to_string(joint_angle) << separator;
         }
 
-        mlspace->projectToPose(state->state_id, pose);
+        mlspace->projectToPose(state, pose);
         outFile << std::to_string(pose.translation().x()) << separator
                 << std::to_string(pose.translation().y()) << separator
                 << std::to_string(pose.translation().z());
