@@ -59,12 +59,12 @@ Planner::Planner(
 
     // TODO later: unnecessary now???
     // Wait for an RViz instance
-    // while (visualize_ && !rvizIsRunning()) {
-    //     if (verbose_) {
-    //         ROS_INFO("Waiting for RViz instance to start before instantiating a planner...");
-    //     }
-    //     ros::Duration(0.5).sleep();
-    // }
+    while (visualize_ && !rvizIsRunning()) {
+        if (verbose_) {
+            ROS_INFO("Waiting for RViz instance to start before instantiating a planner...");
+        }
+        ros::Duration(0.5).sleep();
+    }
 
     visualizer_ = new smpl::VisualizerROS(nh_, 100);
     smpl::viz::set_visualizer(visualizer_);
@@ -210,8 +210,8 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
                 - request_common_msg.workspace_parameters.min_corner.y;
     df_size_z = request_common_msg.workspace_parameters.max_corner.z
                 - request_common_msg.workspace_parameters.min_corner.z;
-    df_origin_x = - df_size_x / 2;
-    df_origin_y = - df_size_y / 2;
+    df_origin_x = -df_size_x / 2;
+    df_origin_y = -df_size_y / 2;
     df_origin_z = 0.0;
     df_res = 0.02;       // TODO later:
     max_distance = 1.8;  // set these externally(?)
@@ -362,6 +362,12 @@ bool Planner::planForProblem(int problem_index) {
         return false;
     }
 
+    // Export all occupied voxel centers (for visualization)
+    if (!exportOccupiedVoxels()) {
+        ROS_ERROR("Failed to export the scene's occupied voxel center coordinates");
+        return false;
+    }
+
     // Set planning algorithm id
     if (goal_type_ == "pose") {
         request_msg.planner_id = planning_algorithm_ + ".bfs.manip";
@@ -440,12 +446,20 @@ bool Planner::ProcessCollisionObjects(
         for (int tidx = 0; tidx < num_threads_; ++tidx) {
             if (!cs_scene_.ProcessCollisionObjectMsg(tidx, object)) {
                 if (verbose_) {
-                    ROS_ERROR("Could not process collision object %s for thread %d", object.id.c_str(), tidx);
+                    ROS_ERROR(
+                      "Could not process collision object %s for thread %d",
+                      object.id.c_str(),
+                      tidx
+                    );
                     return false;
                 }
             } else {
                 if (verbose_) {
-                    ROS_INFO("Successfully processed collision object %s for thread %d", object.id.c_str(), tidx);
+                    ROS_INFO(
+                      "Successfully processed collision object %s for thread %d",
+                      object.id.c_str(),
+                      tidx
+                    );
                 }
             }
         }
@@ -476,6 +490,28 @@ bool Planner::prepareCSSceneCollisionObjects(std::vector<moveit_msgs::CollisionO
         VisualizeCollisionWorld();
     }
 
+    return true;
+}
+
+bool Planner::exportOccupiedVoxels() {
+    std::ofstream outFile("occupied_voxels.csv");
+    std::vector<Eigen::Vector3d> occupied_voxels_vec;
+
+    std::string const separator = ",";
+
+    outFile << "x" << separator << "y" << separator << "z\n";  // add header
+
+    for (auto & grid : grid_vec_) {
+        grid->getOccupiedVoxels(occupied_voxels_vec);
+    }
+
+    for (auto & voxel : occupied_voxels_vec) {
+        outFile << std::to_string(voxel[0]) << separator
+                << std::to_string(voxel[1]) << separator
+                << std::to_string(voxel[2]) << "\n";
+    }
+
+    outFile.close();
     return true;
 }
 

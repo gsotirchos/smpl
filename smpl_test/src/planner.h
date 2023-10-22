@@ -61,6 +61,7 @@ class Planner {
       moveit_msgs::CollisionObject::_operation_type operation
     );
     bool prepareCSSceneCollisionObjects(std::vector<moveit_msgs::CollisionObject> & objects);
+    bool exportOccupiedVoxels();
 
     // bool ComputeIK(
     //   Eigen::Affine3d const & pose,
