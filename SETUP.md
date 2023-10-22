@@ -86,7 +86,7 @@ done
 
 ```bash
 source "${workspace}"/devel/setup.bash
-roslaunch smpl_test goal_franka_benchmarking.launch debug:=true --screen
+roslaunch smpl_test goal_fetch_benchmarking.launch debug:=true profile:=false
 ```
 
 - RViz will start in fullscreen unless specified otherwise with `fullscreen:=false` or is completely disabled with `rviz:=false`.
