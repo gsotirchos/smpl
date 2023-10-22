@@ -1,6 +1,6 @@
 planning:
   discretization:
-    torso_lift_joint      0.10
+    torso_lift_joint      0.005
     shoulder_pan_joint    0.017453292519943295
     shoulder_lift_joint   0.017453292519943295
     upperarm_roll_joint   0.017453292519943295
