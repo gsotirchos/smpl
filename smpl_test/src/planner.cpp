@@ -230,11 +230,10 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
     );
 
     auto ref_counted = false;
-    smpl::OccupancyGrid const grid(df, ref_counted);
-    grid_ = grid;
+    grid_ = new smpl::OccupancyGrid (df, ref_counted);  // will be deleted in cc_ destructor
 
-    grid_.setReferenceFrame(planning_frame_);
-    SV_SHOW_INFO(grid_.getBoundingBoxVisualization());
+    grid_->setReferenceFrame(planning_frame_);
+    SV_SHOW_INFO(grid_->getBoundingBoxVisualization());
 
     //////////////////////////////////
     // Initialize Collision Checker //
@@ -253,7 +252,7 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
 
     if (!cc_.init(
           num_threads_,
-          &grid_,
+          grid_,
           grid_vec_,
           robot_description_,
           cc_conf,
@@ -296,7 +295,7 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
         return false;
     }
 
-    // SV_SHOW_INFO(grid_.getDistanceFieldVisualization(0.2));
+    // SV_SHOW_INFO(grid_->getDistanceFieldVisualization(0.2));
 
     ///////////////////
     // Planner Setup //
@@ -398,9 +397,12 @@ bool Planner::planForProblem(int problem_index) {
     // VisualizeCollisionWorld();
     // return true;
 
+    request_msg.allowed_planning_time = 2.0;  // TODO
     auto plan_found = planner_interface_->solve(planning_scene, request_msg, res);
     if ((!plan_found) || (res.trajectory.joint_trajectory.points.size() == 0)) {
-        ROS_ERROR("Failed to plan");
+        if (verbose_) {
+            ROS_ERROR("Failed to plan");
+        }
         return false;
     }
 
@@ -435,19 +437,14 @@ bool Planner::ProcessCollisionObjects(
   moveit_msgs::CollisionObject::_operation_type operation
 ) {
     for (auto & object : objects) {
-        if (verbose_) {
-            std::cout << " collision object: " << std::string(object.id) << object.operation
-                      << '\n';
-        }
-
         object.header.frame_id = planning_frame_;
         object.operation = operation;
 
         for (int tidx = 0; tidx < num_threads_; ++tidx) {
             if (!cs_scene_.ProcessCollisionObjectMsg(tidx, object)) {
                 if (verbose_) {
-                    ROS_ERROR(
-                      "Could not process collision object %s for thread %d",
+                    ROS_INFO(
+                      "Failed to process collision object %s for thread %d",
                       object.id.c_str(),
                       tidx
                     );
@@ -465,7 +462,9 @@ bool Planner::ProcessCollisionObjects(
         }
     }
 
-    std::cout << "All collision objects successfully processed!" << '\n';
+    if (verbose_) {
+        ROS_INFO("All collision objects successfully processed!");
+    }
 
     return true;
 }
@@ -494,7 +493,7 @@ bool Planner::prepareCSSceneCollisionObjects(std::vector<moveit_msgs::CollisionO
 }
 
 bool Planner::exportOccupiedVoxels() {
-    std::ofstream outFile("occupied_voxels.csv");
+    std::ofstream outFile("occupied_voxels.csv");  // ~/.ros/occupied_voxels.csv
     std::vector<Eigen::Vector3d> occupied_voxels_vec;
 
     std::string const separator = ",";

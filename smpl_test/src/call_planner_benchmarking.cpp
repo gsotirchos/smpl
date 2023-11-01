@@ -56,12 +56,9 @@ int main(int argc, char * argv[]) {
 
     for (int i = problem_index_start; i <= problem_index_end; i++) {
         if (!planner.planForProblem(i)) {
-            ROS_ERROR("Failed to plan for problem no. %d.", i);
-            return 1;
-        }
-
-        if (verbose) {
-            ROS_ERROR("Planning successful for problem no. %d.", i);
+            ROS_ERROR("FAILED: planning for problem no. %d.", i);
+        } else {
+            ROS_ERROR("SUCCEEDED: planning for problem no. %d.", i);
         }
     }
 

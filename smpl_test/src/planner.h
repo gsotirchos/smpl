@@ -120,7 +120,7 @@ class Planner {
     std::shared_ptr<smpl::PlannerInterface> planner_interface_;
     CollisionSpaceSceneMultithread cs_scene_;
     smpl::collision::CollisionSpaceMultithread cc_;
-    smpl::OccupancyGrid grid_;
+    smpl::OccupancyGrid * grid_;
     std::vector<smpl::OccupancyGrid *> grid_vec_;
     std::vector<moveit_msgs::CollisionObject> collision_objects_;
 };
