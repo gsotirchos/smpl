@@ -306,6 +306,8 @@ void PlannerInterface::construct()
 
     m_heuristic_factories["joint_distance_egraph"] = MakeJointDistEGraphHeuristic;
 
+    m_heuristic_factories["joint_distance_weighted"] = MakeJointDistWeightedHeuristic;
+
     /////////////////////////////
     // Setup Planner Factories //
     /////////////////////////////

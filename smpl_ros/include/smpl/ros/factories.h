@@ -97,6 +97,11 @@ auto MakeJointDistEGraphHeuristic(
     const PlanningParams& params)
     -> std::unique_ptr<RobotHeuristic>;
 
+auto MakeJointDistWeightedHeuristic(
+    RobotPlanningSpace* space,
+    const PlanningParams& params)
+    -> std::unique_ptr<RobotHeuristic>;
+
 //////////////////////
 // Search Factories //
 //////////////////////

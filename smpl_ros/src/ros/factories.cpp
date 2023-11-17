@@ -17,6 +17,7 @@
 #include <smpl/heuristic/generic_egraph_heuristic.h>
 #include <smpl/heuristic/joint_dist_heuristic.h>
 #include <smpl/heuristic/multi_frame_bfs_heuristic.h>
+#include <smpl/heuristic/joint_dist_weighted_heuristic.h>
 #include <smpl/planning_params.h>
 #include <smpl/robot_model.h>
 #include <smpl/search/adaptive_planner.h>
@@ -600,6 +601,18 @@ auto MakeJointDistEGraphHeuristic(
     double egw;
     params.param("egraph_epsilon", egw, 1.0);
     h->setWeightEGraph(egw);
+    return std::move(h);
+};
+
+auto MakeJointDistWeightedHeuristic(
+    RobotPlanningSpace* space,
+    const PlanningParams& params)
+    -> std::unique_ptr<RobotHeuristic>
+{
+    auto h = make_unique<JointDistWeightedHeuristic>();
+    if (!h->init(space)) {
+        return nullptr;
+    }
     return std::move(h);
 };
 
