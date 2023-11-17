@@ -4,6 +4,7 @@
 #include <smpl/planning_params.h>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 // system includes
@@ -230,7 +231,7 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
     );
 
     auto ref_counted = false;
-    grid_ = new smpl::OccupancyGrid (df, ref_counted);  // will be deleted in cc_ destructor
+    grid_ = new smpl::OccupancyGrid(df, ref_counted);  // will be deleted in cc_ destructor
 
     grid_->setReferenceFrame(planning_frame_);
     SV_SHOW_INFO(grid_->getBoundingBoxVisualization());
@@ -371,11 +372,14 @@ bool Planner::planForProblem(int problem_index) {
     if (goal_type_ == "pose") {
         request_msg.planner_id = planning_algorithm_ + ".bfs.manip";
     } else if (goal_type_ == "joints") {
-        request_msg.planner_id = planning_algorithm_ + ".joint_distance.manip";
+        request_msg.planner_id = planning_algorithm_ + ".joint_distance_weighted.manip";
     } else {
         ROS_ERROR("Goal type not identified!");
         return false;
     }
+
+    // Swap start and goal in case of the reverse problem
+    swapStartAndGoal(request_msg.start_state, request_msg.goal_constraints[0]);
 
     // Set up planner interface
     // planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
@@ -397,7 +401,6 @@ bool Planner::planForProblem(int problem_index) {
     // VisualizeCollisionWorld();
     // return true;
 
-    request_msg.allowed_planning_time = 2.0;  // TODO
     auto plan_found = planner_interface_->solve(planning_scene, request_msg, res);
     if ((!plan_found) || (res.trajectory.joint_trajectory.points.size() == 0)) {
         if (verbose_) {
@@ -505,9 +508,8 @@ bool Planner::exportOccupiedVoxels() {
     }
 
     for (auto & voxel : occupied_voxels_vec) {
-        outFile << std::to_string(voxel[0]) << separator
-                << std::to_string(voxel[1]) << separator
-                << std::to_string(voxel[2]) << "\n";
+        outFile << std::to_string(voxel[0]) << separator << std::to_string(voxel[1])
+                << separator << std::to_string(voxel[2]) << "\n";
     }
 
     outFile.close();
@@ -776,5 +778,30 @@ bool Planner::setupPlannerParams(PlannerConfig & config) {
     planner_params_.addParam("bfs_inlation_radius", 0.02);
     planner_params_.addParam("bfs_cost_per_cell", 100);
 
+    return true;
+}
+
+bool Planner::swapStartAndGoal(
+  moveit_msgs::RobotState & start_state,
+  moveit_msgs::Constraints & goal_state
+) {
+    // Iterate over the goal joint values
+    for (auto & joint_constraint : goal_state.joint_constraints) {
+        // Find the corresponding index for that joint in the start state array
+        auto start_joint_index = distance(
+          start_state.joint_state.name.begin(),
+          std::find(
+            start_state.joint_state.name.begin(),
+            start_state.joint_state.name.end(),
+            joint_constraint.joint_name
+          )
+        );
+
+        // Swap the values between start and goal positions for this joint
+        std::swap(
+          start_state.joint_state.position[start_joint_index],
+          joint_constraint.position
+        );
+    }
     return true;
 }

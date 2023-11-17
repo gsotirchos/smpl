@@ -88,6 +88,10 @@ class Planner {
     );
     bool readPlannerConfig(ros::NodeHandle const & nh);
     bool setupPlannerParams(PlannerConfig & config);
+    bool swapStartAndGoal(
+      moveit_msgs::RobotState & start_state,
+      moveit_msgs::Constraints & goal_state
+    );
 
     ros::NodeHandle nh_;
     ros::NodeHandle ph_;
