@@ -86,9 +86,9 @@ done
 
 ```bash
 source "${workspace}"/devel/setup.bash
-roslaunch smpl_test goal_fetch_benchmarking.launch debug:=true profile:=false
+roslaunch smpl_test goal_fetch_benchmarking.launch debug:=true profile:=false rviz:=true reverse:=false
 ```
 
-- RViz will start in fullscreen unless specified otherwise with `fullscreen:=false` or is completely disabled with `rviz:=false`.
+- RViz will start in full-screen unless otherwise specified with `fullscreen:=false`.
 - The outputs are saved in the files `~/occupied_voxels.csv` and `~/states_and_costs.csv`.
 - You might have to press Ctrl+C and then 2× Ctrl+D to exit the debugger.
