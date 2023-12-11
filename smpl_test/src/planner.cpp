@@ -266,38 +266,42 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
     }
 
     // TODO: remove (debugging) ===============================
-    std::vector<std::string> const overlapping_links =
-      {"bellows_link", "bellows_link2", "torso_fixed_link", "torso_lift_link"};
+    // std::vector<std::string> const overlapping_links =
+    //   {"bellows_link", "bellows_link2", "torso_fixed_link", "torso_lift_link"};
+    // ========================================================
 
     // Load allowed collision pairs
     smpl::collision::AllowedCollisionMatrix acm;
     auto const link_names = scene_common_msg.allowed_collision_matrix.entry_names;
     auto const collision_values = scene_common_msg.allowed_collision_matrix.entry_values;
     for (unsigned int i = 0; i < link_names.size(); i++) {
-        auto link1_can_overlap = std::find(
-                                      overlapping_links.begin(),
-                                      overlapping_links.end(),
-                                      link_names[i]
-                                    )
-                                    != overlapping_links.end();
+        // ========================================================
+        // auto link1_can_overlap = std::find(
+        //                               overlapping_links.begin(),
+        //                               overlapping_links.end(),
+        //                               link_names[i]
+        //                             )
+        //                             != overlapping_links.end();
+        // ========================================================
 
         for (unsigned int j = i + 1; j < link_names.size(); j++) {
-            auto link2_can_overlap = std::find(
-                                          overlapping_links.begin(),
-                                          overlapping_links.end(),
-                                          link_names[j]
-                                        )
-                                        != overlapping_links.end();
+            acm.setEntry(link_names[i], link_names[j], collision_values[i].enabled[j]);
 
-            // If both links are allowed to overlap, disable their collision checking
-            if (link1_can_overlap && link2_can_overlap) {
-                acm.setEntry(link_names[i], link_names[j], true);
-            } else {
-                acm.setEntry(link_names[i], link_names[j], collision_values[i].enabled[j]);
-            }
+            // ========================================================
+            // auto link2_can_overlap = std::find(
+            //                               overlapping_links.begin(),
+            //                               overlapping_links.end(),
+            //                               link_names[j]
+            //                             )
+            //                             != overlapping_links.end();
+            //
+            // // If both links are allowed to overlap, disable their collision checking
+            // if (link1_can_overlap && link2_can_overlap) {
+            //     acm.setEntry(link_names[i], link_names[j], true);
+            // }
+            // ========================================================
         }
     }
-    // ========================================================
 
     cc_.setAllowedCollisionMatrix(acm);
 
