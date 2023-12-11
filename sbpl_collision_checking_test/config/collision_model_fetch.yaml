@@ -323,20 +323,20 @@ robot_collision_model:
         # *  *  *
         # *  *  *
         #  *   *
-        - { name: l1209, x:  0.220, y:  0.110, z:  0.655, radius: 0.065, priority: 5 }
-        - { name: l1210, x:  0.220, y: -0.110, z:  0.655, radius: 0.065, priority: 5 }
-        - { name: l1212, x:  0.220, y: -0.000, z:  0.655, radius: 0.065, priority: 5 }
+        - { name: l1209, x:  0.200, y:  0.095, z:  0.660, radius: 0.058, priority: 5 }
+        - { name: l1210, x:  0.200, y: -0.095, z:  0.660, radius: 0.058, priority: 5 }
+        - { name: l1212, x:  0.200, y: -0.000, z:  0.660, radius: 0.058, priority: 5 }
 
-        - { name: l1209, x:  0.140, y:  0.110, z:  0.655, radius: 0.065, priority: 5 }
-        - { name: l1210, x:  0.140, y: -0.110, z:  0.655, radius: 0.065, priority: 5 }
-        - { name: l1212, x:  0.140, y: -0.000, z:  0.655, radius: 0.065, priority: 5 }
+        - { name: l1209, x:  0.130, y:  0.095, z:  0.660, radius: 0.058, priority: 5 }
+        - { name: l1210, x:  0.130, y: -0.095, z:  0.660, radius: 0.058, priority: 5 }
+        - { name: l1212, x:  0.130, y: -0.000, z:  0.660, radius: 0.058, priority: 5 }
 
-        - { name: l1209, x:  0.060, y:  0.110, z:  0.655, radius: 0.065, priority: 5 }
-        - { name: l1210, x:  0.060, y: -0.110, z:  0.655, radius: 0.065, priority: 5 }
-        - { name: l1212, x:  0.060, y: -0.000, z:  0.655, radius: 0.065, priority: 5 }
+        - { name: l1209, x:  0.060, y:  0.095, z:  0.660, radius: 0.058, priority: 5 }
+        - { name: l1210, x:  0.060, y: -0.095, z:  0.660, radius: 0.058, priority: 5 }
+        - { name: l1212, x:  0.060, y: -0.000, z:  0.660, radius: 0.058, priority: 5 }
 
-        - { name: l1213, x:  0.005, y:  0.045, z:  0.635, radius: 0.065, priority: 5 }
-        - { name: l1214, x:  0.005, y: -0.045, z:  0.635, radius: 0.065, priority: 5 }
+        - { name: l1213, x:  0.005, y:  0.045, z:  0.645, radius: 0.058, priority: 5 }
+        - { name: l1214, x:  0.005, y: -0.045, z:  0.645, radius: 0.058, priority: 5 }
     - link_name: shoulder_pan_link
       # auto: true
       # radius: 0.02
