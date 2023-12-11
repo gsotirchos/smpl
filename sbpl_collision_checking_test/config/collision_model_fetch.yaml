@@ -61,10 +61,10 @@ robot_collision_model:
       # radius: 0.02
       auto: false
       spheres:
-          - { name: l9001, x:  0.095, y:  0.070, z:  0.190, radius: 0.190, priority: 5 }
-          - { name: l9002, x:  0.095, y: -0.070, z:  0.190, radius: 0.190, priority: 5 }
-          - { name: l9003, x: -0.110, y:  0.100, z:  0.160, radius: 0.160, priority: 5 }
-          - { name: l9004, x: -0.110, y: -0.100, z:  0.160, radius: 0.160, priority: 5 }
+          - { name: l9001, x:  0.085, y:  0.075, z:  0.190, radius: 0.190, priority: 5 }
+          - { name: l9002, x:  0.085, y: -0.075, z:  0.190, radius: 0.190, priority: 5 }
+          - { name: l9003, x: -0.090, y:  0.065, z:  0.190, radius: 0.190, priority: 5 }
+          - { name: l9004, x: -0.090, y: -0.065, z:  0.190, radius: 0.190, priority: 5 }
     - link_name: torso_fixed_link
       # auto: true
       # radius: 0.02
