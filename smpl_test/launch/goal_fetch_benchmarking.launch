@@ -6,6 +6,7 @@
     <arg name="fullscreen" default="true"/>
     <arg name="verbose" default="true"/>
     <arg name="rviz" default="true"/>
+    <arg name="reverse" default="false"/>
     <arg name="args" default=""/>
 
     <arg unless="$(arg debug)" name="debug-prefix" value=""/>
@@ -42,8 +43,8 @@
         <param name="planning/mprim_filename" value="$(find smpl_test)/config/fetch.mprim"/>
 
         <param name="planning_problems_directory" value="$(find robowflex_library)/problems/fetch/bookshelf_small_fetch"/>
-        <param name="planning_problem_index_start" value="1"/>
-        <param name="planning_problem_index_end" value="1"/>
+        <param name="planning_problem_index_start" value="2"/>
+        <param name="planning_problem_index_end" value="2"/>
         <param name="planning_problem_index_width" value="4"/>
 
         <param name="planning_algorithm" value="arastar"/>  <!-- options: arastar, epase -->
@@ -53,5 +54,6 @@
 
         <param name="verbose" value="$(arg verbose)"/>
         <param name="visualize" value="$(arg rviz)"/>
+        <param name="reverse" value="$(arg reverse)"/>
     </node>
 </launch>

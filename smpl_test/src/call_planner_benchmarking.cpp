@@ -24,6 +24,12 @@ int main(int argc, char * argv[]) {
         return 1;
     }
 
+    bool reverse;
+    if (!ph.getParam("reverse", reverse)) {
+        ROS_ERROR("Failed to read 'visualize' from the param server");
+        return 1;
+    }
+
     // Get planning problems' info
     std::string problems_dir;
     if (!ph.getParam("planning_problems_directory", problems_dir)) {
@@ -44,7 +50,7 @@ int main(int argc, char * argv[]) {
     }
 
 
-    Planner planner(nh, ph, verbose, visualize);
+    Planner planner(nh, ph, verbose, visualize, reverse);
 
     if (!planner.loadProblemCommonParams(problems_dir)) {
         ROS_ERROR(

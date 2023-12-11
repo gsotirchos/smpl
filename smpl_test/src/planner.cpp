@@ -4,7 +4,6 @@
 #include <smpl/planning_params.h>
 #include <string>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
 // system includes
@@ -30,12 +29,14 @@ Planner::Planner(
   ros::NodeHandle const & nh,
   ros::NodeHandle const & ph,
   bool verbose,
-  bool visualize
+  bool visualize,
+  bool reverse
 ) :
   nh_(nh),
   ph_(ph),
   verbose_(verbose),
   visualize_(visualize),
+  reverse_(reverse),
   separator_(", ") {
     // TODO: add date to file name
     std::string const results_file_path = "/tmp/planning_benchmarks_.csv";
@@ -58,7 +59,7 @@ Planner::Planner(
         ROS_INFO("Initialize visualizer");
     }
 
-    // TODO later: unnecessary now???
+    // TODO later: no longer necessary???
     // Wait for an RViz instance
     while (visualize_ && !rvizIsRunning()) {
         if (verbose_) {
@@ -76,7 +77,7 @@ Planner::~Planner() {
     delete visualizer_;
 }
 
-// TODO later: unnecessary???
+// TODO later: no longer necessary???
 bool Planner::rvizIsRunning() {
     ros::V_string node_names;
 
@@ -264,17 +265,40 @@ bool Planner::loadProblemCommonParams(std::string const & problems_dir) {
         return false;
     }
 
+    // TODO: remove (debugging) ===============================
+    std::vector<std::string> const overlapping_links =
+      {"bellows_link", "bellows_link2", "torso_fixed_link", "torso_lift_link"};
+
     // Load allowed collision pairs
     smpl::collision::AllowedCollisionMatrix acm;
     auto const link_names = scene_common_msg.allowed_collision_matrix.entry_names;
     auto const collision_values = scene_common_msg.allowed_collision_matrix.entry_values;
     for (unsigned int i = 0; i < link_names.size(); i++) {
+        auto link1_can_overlap = std::find(
+                                      overlapping_links.begin(),
+                                      overlapping_links.end(),
+                                      link_names[i]
+                                    )
+                                    != overlapping_links.end();
+
         for (unsigned int j = i + 1; j < link_names.size(); j++) {
-            if (collision_values[i].enabled[j]) {
+            auto link2_can_overlap = std::find(
+                                          overlapping_links.begin(),
+                                          overlapping_links.end(),
+                                          link_names[j]
+                                        )
+                                        != overlapping_links.end();
+
+            // If both links are allowed to overlap, disable their collision checking
+            if (link1_can_overlap && link2_can_overlap) {
                 acm.setEntry(link_names[i], link_names[j], true);
+            } else {
+                acm.setEntry(link_names[i], link_names[j], collision_values[i].enabled[j]);
             }
         }
     }
+    // ========================================================
+
     cc_.setAllowedCollisionMatrix(acm);
 
     /////////////////
@@ -379,7 +403,9 @@ bool Planner::planForProblem(int problem_index) {
     }
 
     // Swap start and goal in case of the reverse problem
-    swapStartAndGoal(request_msg.start_state, request_msg.goal_constraints[0]);
+    if (reverse_) {
+        swapStartAndGoal(request_msg.start_state, request_msg.goal_constraints[0]);
+    }
 
     // Set up planner interface
     // planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
@@ -396,10 +422,13 @@ bool Planner::planForProblem(int problem_index) {
     moveit_msgs::MotionPlanResponse res;
     moveit_msgs::PlanningScene planning_scene;
     planning_scene.robot_state = request_msg.start_state;
+    // request_msg.allowed_planning_time = 0.3;  // TODO: remove (debugging) ==========
 
+    // TODO: remove (debugging) ===============================
     // planner_interface_->checkStart(planning_scene, request_msg, res);
     // VisualizeCollisionWorld();
     // return true;
+    // ========================================================
 
     auto plan_found = planner_interface_->solve(planning_scene, request_msg, res);
     if ((!plan_found) || (res.trajectory.joint_trajectory.points.size() == 0)) {

@@ -49,7 +49,8 @@ class Planner {
       ros::NodeHandle const & nh,
       ros::NodeHandle const & ph,
       bool verbose = false,
-      bool visualize = false
+      bool visualize = false,
+      bool reverse = false
     );
     ~Planner();
 
@@ -97,6 +98,7 @@ class Planner {
     ros::NodeHandle ph_;
     bool verbose_;
     bool visualize_;
+    bool reverse_;
     // std::unique_ptr<std::ofstream> results_file_;
     // std::unique_ptr<std::ofstream> results_file_ = std::unique_ptr<std::ofstream>(
     //   new std::ofstream()
