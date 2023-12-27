@@ -1,3 +1,0 @@
-moveit_msgs/AttachedCollisionObject[] attached_objects
----
-bool success
