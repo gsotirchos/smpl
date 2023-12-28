@@ -19,7 +19,7 @@
     <depend>sbpl_kdl_robot_model</depend>
     <depend>smpl_ompl_interface</depend>
     <depend>visualization_msgs</depend>
-    <depend>sym_plan_msgs</depend>
+    <!-- <depend>sym_plan_msgs</depend> -->
     <depend>robowflex_library</depend>
 
     <exec_depend>pr2_description</exec_depend>
