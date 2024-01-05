@@ -1,4 +1,5 @@
 // standard includes
+#include <ros/console_backend.h>
 #include <string>
 
 // system includes
@@ -61,10 +62,11 @@ int main(int argc, char * argv[]) {
     }
 
     for (int i = problem_index_start; i <= problem_index_end; i++) {
+        ROS_INFO("Planning for problem no. %d...", i);
         if (!planner.planForProblem(i)) {
-            ROS_ERROR("FAILED: planning for problem no. %d.", i);
+            ROS_INFO("FAILED");
         } else {
-            ROS_ERROR("SUCCEEDED: planning for problem no. %d.", i);
+            ROS_INFO("SUCCEEDED");
         }
     }
 
