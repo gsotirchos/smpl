@@ -99,9 +99,9 @@ class Planner {
     bool visualize_;
     smpl::VisualizerROS * visualizer_;
 
-    static std::string separator_;
-    static std::string file_suffix_;
-    static std::string stats_file_prefix_;
+    std::string separator_;
+    std::string file_suffix_;
+    std::string stats_file_prefix_;
     std::ofstream stats_file_;
 
     std::string problems_dir_;

@@ -36,12 +36,15 @@ Planner::Planner(
   ph_(ph),
   verbose_(verbose),
   visualize_(visualize) {
+    separator_ = ", ";
+    file_suffix_ = ".csv";
+    stats_file_prefix_ = "benchmarking_smpl/";
+
     if (verbose_) {
         ROS_INFO("Initialize visualizer");
     }
 
-    // TODO later: possibly unnecessary
-    // Wait for an RViz instance
+    // Wait for an RViz instance (TODO: possibly unnecessary)
     while (visualize_ && !rvizIsRunning()) {
         if (verbose_) {
             ROS_INFO("Waiting for RViz instance to start before instantiating a planner...");
@@ -61,7 +64,7 @@ Planner::~Planner() {
     delete visualizer_;
 }
 
-// TODO later: possibly unnecessary
+// TODO: possibly unnecessary
 bool Planner::rvizIsRunning() {
     ros::V_string node_names;
 
@@ -282,7 +285,7 @@ bool Planner::initForProblemsDir(std::string const & problems_dir) {
         return false;
     }
 
-    // TODO: remove (debugging) ===============================
+    // TODO: remove (for debugging) ===========================
     // std::vector<std::string> const overlapping_links =
     //   {"bellows_link", "bellows_link2", "torso_fixed_link", "torso_lift_link"};
     // ========================================================
@@ -443,24 +446,17 @@ bool Planner::planForProblemIdx(int problem_index, bool reverse) {
     moveit_msgs::MotionPlanResponse res;
     moveit_msgs::PlanningScene planning_scene;
     planning_scene.robot_state = request_msg.start_state;
-    // request_msg.allowed_planning_time = 0.3;  // TODO: remove (debugging) ==========
+    // request_msg.allowed_planning_time = 3;  // TODO: remove (for debugging)
 
-    // TODO: remove (debugging) ===============================
+    // TODO: remove (for debugging) ===========================
     // planner_interface_->checkStart(planning_scene, request_msg, res);
     // VisualizeCollisionWorld();
     // return true;
     // ========================================================
 
     auto plan_found = planner_interface_->solve(planning_scene, request_msg, res);
-    if ((!plan_found) || (res.trajectory.joint_trajectory.points.size() == 0)) {
-        if (verbose_) {
-            ROS_ERROR("Failed to plan");
-        }
-        return false;
-    }
 
     auto planning_stats = planner_interface_->getPlannerStats();
-
     if (verbose_) {
         ROS_INFO("Planning statistics");
         for (auto & entry : planning_stats) {
@@ -481,6 +477,13 @@ bool Planner::planForProblemIdx(int problem_index, bool reverse) {
     if (visualize_) {
         VisualizeCollisionWorld();
         VisualizePath(res.trajectory);
+    }
+
+    if ((!plan_found) || (res.trajectory.joint_trajectory.points.size() == 0)) {
+        if (verbose_) {
+            ROS_ERROR("Failed to plan");
+        }
+        return false;
     }
 
     return true;
@@ -627,9 +630,6 @@ void Planner::VisualizePath(moveit_msgs::RobotTrajectory trajectory) {
 
 
 // Private //
-std::string Planner::separator_ = ", ";
-std::string Planner::file_suffix_ = ".csv";
-std::string Planner::stats_file_prefix_ = "benchmarking_smpl/";
 
 template<typename T>
 bool Planner::loadYamlToMsg(std::string const & problems_dir, int problem_index, T & msg) {
