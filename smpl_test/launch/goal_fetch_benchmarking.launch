@@ -4,7 +4,7 @@
     <arg name="debug"       default="false"/>
     <arg name="profile"     default="false"/>
     <arg name="fullscreen"  default="false"/>
-    <arg name="dataset"     default="package://pyre/datasets/shelf_zero"/>
+    <arg name="dataset"     default="$(find pyre)/datasets/shelf_zero"/>
     <arg name="start"       default="1"/>
     <arg name="end"         default="100"/>
     <arg name="planner"     default="arastar"/>  <!-- options: arastar, epase -->
@@ -53,8 +53,8 @@
         <param name="planning_problem_index_width" value="4"/>
 
         <param name="planning_algorithm" value="$(arg planner)"/>
-        <param name="goal_type"          value="joints"/>  <!-- options: joints, pose -->
         <param name="num_threads"        value="4"/>
+        <param name="goal_type"          value="joints"/>  <!-- options: joints, pose -->
         <param name="planning_frame"     value="odom_combined"/>
 
         <param name="verbose"   value="$(arg verbose)"/>
