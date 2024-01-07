@@ -49,14 +49,13 @@ class Planner {
       ros::NodeHandle const & nh,
       ros::NodeHandle const & ph,
       bool verbose = false,
-      bool visualize = false,
-      bool reverse = false
+      bool visualize = false
     );
     ~Planner();
 
     bool rvizIsRunning();
-    bool loadProblemCommonParams(std::string const & problems_dir);
-    bool planForProblem(int problem_index);
+    bool initForProblemsDir(std::string const & problems_dir);
+    bool planForProblemIdx(int problem_index, bool reverse = false);
     bool ProcessCollisionObjects(
       std::vector<moveit_msgs::CollisionObject> & objects,
       moveit_msgs::CollisionObject::_operation_type operation
@@ -98,14 +97,12 @@ class Planner {
     ros::NodeHandle ph_;
     bool verbose_;
     bool visualize_;
-    bool reverse_;
-    // std::unique_ptr<std::ofstream> results_file_;
-    // std::unique_ptr<std::ofstream> results_file_ = std::unique_ptr<std::ofstream>(
-    //   new std::ofstream()
-    // );
-    std::ofstream results_file_;
-    std::string separator_;
     smpl::VisualizerROS * visualizer_;
+
+    static std::string separator_;
+    static std::string file_suffix_;
+    static std::string stats_file_prefix_;
+    std::ofstream stats_file_;
 
     std::string problems_dir_;
     int problem_index_width_;
