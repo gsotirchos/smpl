@@ -92,6 +92,10 @@ class Planner {
       moveit_msgs::RobotState & start_state,
       moveit_msgs::Constraints & goal_state
     );
+    bool openPlanningStatsFile_(
+      std::string const & problem_name_,
+      std::string const & planning_algorithm_
+    );
 
     ros::NodeHandle nh_;
     ros::NodeHandle ph_;
@@ -105,6 +109,7 @@ class Planner {
     std::ofstream stats_file_;
 
     std::string problems_dir_;
+    std::string problem_name_;
     int problem_index_width_;
     std::string planning_algorithm_;
     std::string goal_type_;

@@ -1,5 +1,6 @@
 // standard includes
 #include <boost/filesystem.hpp>
+#include <ctime>
 #include <moveit_msgs/AllowedCollisionEntry.h>
 #include <moveit_msgs/MotionPlanRequest.h>
 #include <smpl/planning_params.h>
@@ -37,7 +38,7 @@ Planner::Planner(
   verbose_(verbose),
   visualize_(visualize) {
     separator_ = ", ";
-    file_suffix_ = ".csv";
+    file_suffix_ = "csv";
     stats_file_prefix_ = "benchmarking_smpl/";
 
     if (verbose_) {
@@ -84,7 +85,7 @@ bool Planner::initForProblemsDir(std::string const & problems_dir) {
     problems_dir_ = problems_dir;
 
     // Check whether the specified problems directory exists
-    auto problems_fs = boost::filesystem::path(problems_dir);
+    auto problems_fs = boost::filesystem::path(problems_dir_);
     if (!boost::filesystem::is_directory(problems_fs)) {
         ROS_ERROR(
           "Failed to locate a proper problems directory in the specified path: %s",
@@ -92,29 +93,6 @@ bool Planner::initForProblemsDir(std::string const & problems_dir) {
         );
         return 1;
     }
-
-    // Delete all existing planning stats files in ~/.ros/benchmarking_smpl
-    boost::filesystem::remove_all(boost::filesystem::path(stats_file_prefix_));
-    boost::filesystem::create_directory(boost::filesystem::path(stats_file_prefix_));
-
-    std::string const problem_name = problems_fs.has_filename() ?
-                                       problems_fs.filename().string() :
-                                       problems_fs.parent_path().string();
-
-    // Open a planning stats file handle for ~/.ros/benchmarking_smpl/<problem_name>.csv
-    std::string const stats_file_path = stats_file_prefix_ + "/" + problem_name + file_suffix_;
-    stats_file_.open(stats_file_path);
-    if (verbose_) {
-        ROS_INFO("Open new results file: %s", stats_file_path.c_str());
-    }
-
-    stats_file_
-      << "problem index" << separator_ << "edge_expansions" << separator_ << "expansions"
-      << separator_ << "final epsilon" << separator_ << "final epsilon planning time"
-      << separator_ << "initial epsilon" << separator_ << "initial solution expansions"
-      << separator_ << "initial solution planning time" << separator_ << "solution cost"
-      << separator_ << "solution epsilon" << separator_ << "state_expansions" << separator_
-      << "time" << std::endl;
 
     // Read the problems' index width (e.g. scene0007.yaml -> 4)
     if (!ph_.getParam("planning_problem_index_width", problem_index_width_)) {
@@ -371,6 +349,20 @@ bool Planner::initForProblemsDir(std::string const & problems_dir) {
         VisualizeCollisionWorld();
     }
 
+    /////////////////
+    // Output file //
+    /////////////////
+
+    // Get the planning problem's directory name
+    problem_name_ = problems_fs.has_filename() ? problems_fs.filename().string() :
+                                                 problems_fs.parent_path().string();
+
+    // Open a file handle to write planning stats
+    if (!openPlanningStatsFile_(problem_name_, planning_algorithm_)) {
+        ROS_ERROR("Failed to open a planning stats file");
+        return 1;
+    }
+
     return true;
 }
 
@@ -465,14 +457,15 @@ bool Planner::planForProblemIdx(int problem_index, bool reverse) {
     }
 
     // Write planning stats to stats file
-    stats_file_ << problem_index << separator_;
+    stats_file_ << planning_algorithm_ << separator_ << problem_name_ << separator_
+                << problem_index << separator_;
     for (auto iter = planning_stats.begin(); iter != planning_stats.end(); iter++) {
         stats_file_ << iter->second;
         if (std::next(iter) != planning_stats.end()) {
             stats_file_ << separator_;
         }
     }
-    stats_file_ << std::endl;
+    stats_file_ << "\n";
 
     if (visualize_) {
         VisualizeCollisionWorld();
@@ -858,5 +851,46 @@ bool Planner::swapStartAndGoal(
           joint_constraint.position
         );
     }
+    return true;
+}
+
+bool Planner::openPlanningStatsFile_(
+  std::string const & problem_name,
+  std::string const & planning_algorithm
+) {
+    // Delete all existing planning stats files in ~/.ros/benchmarking_smpl
+    // boost::filesystem::remove_all(boost::filesystem::path(stats_file_prefix_));
+
+    // Prepare output directory (~/.ros/benchmarking_smpl)
+    if (!boost::filesystem::is_directory(boost::filesystem::path(stats_file_prefix_))) {
+        boost::filesystem::create_directory(boost::filesystem::path(stats_file_prefix_));
+    }
+
+    // Create a timestamp
+    std::time_t const time = std::time({});
+    char timestamp[sizeof("yyyymmddhhmmss")];
+    if (!std::strftime(timestamp, sizeof(timestamp), "%Y%m%d%H%M%S", std::localtime(&time))) {
+        return false;
+    }
+
+    // Open a planning stats file handle for ~/.ros/benchmarking_smpl/<timestamp>_<problem_name>_<planner>.csv
+    std::string const stats_file_path = stats_file_prefix_ + "/" + timestamp + "-"
+                                        + problem_name + "-" + planning_algorithm + "."
+                                        + file_suffix_;
+    stats_file_.open(stats_file_path);
+    if (verbose_) {
+        ROS_INFO("Open new results file: %s", stats_file_path.c_str());
+    }
+
+    // Write a header to the planning stats file
+    stats_file_ << "planner" << separator_ << "problem name" << separator_ << "problem index"
+                << separator_ << "edge_expansions" << separator_ << "expansions" << separator_
+                << "final epsilon" << separator_ << "final epsilon planning time" << separator_
+                << "initial epsilon" << separator_ << "initial solution expansions"
+                << separator_ << "initial solution planning time" << separator_
+                << "solution cost" << separator_ << "solution epsilon" << separator_
+                << "state_expansions" << separator_ << "time"
+                << "\n";
+
     return true;
 }
