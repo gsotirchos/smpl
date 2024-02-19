@@ -30,7 +30,7 @@
     <node if="$(arg rviz)" type="rviz" name="rviz" pkg="rviz" args="-d $(find smpl_test)/config/config.rviz $(arg rviz-fullscreen)" output="screen"/>
 
     <!-- 1. call planner -->
-    <node pkg="smpl_test" type="callPlannerBenchmarking" name="call_planner_benchmarking" launch-prefix="$(arg launch-prefix)" args="$(arg args)" output="screen" required="true">
+    <node pkg="smpl_test" type="callPlannerBenchmarking" name="$(anon call_planner_benchmarking)" launch-prefix="$(arg launch-prefix)" args="$(arg args)" output="screen" required="true">
         <!-- robot model (for planning) -->
         <rosparam param="robot_model">
             kinematics_frame:
