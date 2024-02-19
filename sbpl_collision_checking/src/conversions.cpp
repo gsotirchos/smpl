@@ -247,9 +247,11 @@ void ConvertCollisionObjectMsgToWorldObject(
         auto& prim = in.primitives[pidx];
         auto& pose = in.primitive_poses[pidx];
 
-        shapes::ShapeConstPtr sp(shapes::constructShapeFromMsg(prim));
+	shapes::ShapeConstPtr sp(shapes::constructShapeFromMsg(prim));
         if (!sp) {
-            ROS_WARN("Failed to construct shape from primitive message");
+            //ROS_WARN("Failed to construct shape from primitive message");
+	    // in place definition avoids unexplainable segmentation fault on compile time
+	    ROS_LOG(::ros::console::levels::Warn, ROSCONSOLE_DEFAULT_NAME, "Failed to construct shape from primitive message");
             continue;
         }
 
