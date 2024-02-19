@@ -107,7 +107,7 @@ bool Planner::initForProblemsDir(std::string const & problems_dir) {
         return false;
     }
     if (verbose_) {
-        ROS_INFO("planning_algorithm: %s \n", planning_algorithm_.c_str());
+        ROS_INFO("planning_algorithm: %s", planning_algorithm_.c_str());
     }
 
     if (!ph_.getParam("goal_type", goal_type_)) {
@@ -120,7 +120,7 @@ bool Planner::initForProblemsDir(std::string const & problems_dir) {
         return false;
     }
     if (verbose_) {
-        ROS_INFO("num_threads: %d \n", num_threads_);
+        ROS_INFO("num_threads: %d", num_threads_);
     }
 
     // Everyone needs to know the name of the planning frame for
@@ -465,7 +465,7 @@ bool Planner::planForProblemIdx(int problem_index, bool reverse) {
             stats_file_ << separator_;
         }
     }
-    stats_file_ << "\n";
+    stats_file_ << std::endl;
 
     if (visualize_) {
         VisualizeCollisionWorld();
@@ -890,7 +890,7 @@ bool Planner::openPlanningStatsFile_(
                 << separator_ << "initial solution planning time" << separator_
                 << "solution cost" << separator_ << "solution epsilon" << separator_
                 << "state_expansions" << separator_ << "time"
-                << "\n";
+                << std::endl;
 
     return true;
 }
