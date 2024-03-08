@@ -358,7 +358,7 @@ bool Planner::initForProblemsDir(std::string const & problems_dir) {
                                                  problems_fs.parent_path().string();
 
     // Open a file handle to write planning stats
-    if (!openPlanningStatsFile_(problem_name_, planning_algorithm_)) {
+    if (!openPlanningStatsFile(problem_name_, planning_algorithm_)) {
         ROS_ERROR("Failed to open a planning stats file");
         return 1;
     }
@@ -438,11 +438,15 @@ bool Planner::planForProblemIdx(int problem_index, bool reverse) {
     moveit_msgs::MotionPlanResponse res;
     moveit_msgs::PlanningScene planning_scene;
     planning_scene.robot_state = request_msg.start_state;
-    // request_msg.allowed_planning_time = 3;  // TODO: remove (for debugging)
 
     // TODO: remove (for debugging) ===========================
-    // planner_interface_->checkStart(planning_scene, request_msg, res);
-    // VisualizeCollisionWorld();
+    // request_msg.allowed_planning_time = 1;
+    // if (!planner_interface_->checkStart(planning_scene, request_msg, res)) {
+    //     ROS_ERROR("%u: start or goal state in collision!", problem_index);
+    // }
+    // if (visualize_) {
+    //     VisualizeCollisionWorld();
+    // }
     // return true;
     // ========================================================
 
@@ -854,7 +858,7 @@ bool Planner::swapStartAndGoal(
     return true;
 }
 
-bool Planner::openPlanningStatsFile_(
+bool Planner::openPlanningStatsFile(
   std::string const & problem_name,
   std::string const & planning_algorithm
 ) {
