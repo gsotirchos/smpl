@@ -27,7 +27,7 @@ int main(int argc, char * argv[]) {
 
     bool reverse;
     if (!ph.getParam("reverse", reverse)) {
-        ROS_ERROR("Failed to read 'visualize' from the param server");
+        ROS_ERROR("Failed to read 'reverse' from the param server");
         return 1;
     }
 
