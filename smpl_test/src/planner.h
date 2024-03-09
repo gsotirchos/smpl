@@ -54,8 +54,8 @@ class Planner {
     ~Planner();
 
     bool rvizIsRunning();
-    bool initForProblemsDir(std::string const & problems_dir);
-    bool planForProblemIdx(int problem_index, bool reverse = false);
+    bool initForProblemsDir(std::string const & problems_dir, bool const & reverse = false);
+    bool planForProblemIdx(int problem_index);
     bool ProcessCollisionObjects(
       std::vector<moveit_msgs::CollisionObject> & objects,
       moveit_msgs::CollisionObject::_operation_type operation
@@ -108,6 +108,7 @@ class Planner {
     std::string stats_file_prefix_;
     std::ofstream stats_file_;
 
+    bool reverse_;
     std::string problems_dir_;
     std::string problem_name_;
     int problem_index_width_;

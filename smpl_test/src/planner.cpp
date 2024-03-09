@@ -81,7 +81,8 @@ bool Planner::rvizIsRunning() {
     return true;
 }
 
-bool Planner::initForProblemsDir(std::string const & problems_dir) {
+bool Planner::initForProblemsDir(std::string const & problems_dir, bool const & reverse) {
+    reverse_ = reverse;
     problems_dir_ = problems_dir;
 
     // Check whether the specified problems directory exists
@@ -338,13 +339,6 @@ bool Planner::initForProblemsDir(std::string const & problems_dir) {
         return false;
     }
 
-    // Set up planner interface
-    planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
-    if (!planner_interface_->init(planner_params_)) {
-        ROS_ERROR("Failed to initialize Planner Interface");
-        return false;
-    }
-
     if (visualize_) {
         VisualizeCollisionWorld();
     }
@@ -366,7 +360,7 @@ bool Planner::initForProblemsDir(std::string const & problems_dir) {
     return true;
 }
 
-bool Planner::planForProblemIdx(int problem_index, bool reverse) {
+bool Planner::planForProblemIdx(int problem_index) {
     // Read the specified problem's parameters
     moveit_msgs::MotionPlanRequest request_msg;
     moveit_msgs::PlanningScene scene_msg;
@@ -419,16 +413,16 @@ bool Planner::planForProblemIdx(int problem_index, bool reverse) {
     }
 
     // Swap start and goal in case of the reverse problem
-    if (reverse) {
+    if (reverse_) {
         swapStartAndGoal(request_msg.start_state, request_msg.goal_constraints[0]);
     }
 
     // Set up planner interface
-    // planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
-    // if (!planner_interface_->init(planner_params_)) {
-    //     ROS_ERROR("Failed to initialize Planner Interface");
-    //     return false;
-    // }
+    planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
+    if (!planner_interface_->init(planner_params_)) {
+        ROS_ERROR("Failed to initialize Planner Interface");
+        return false;
+    }
 
     // plan
     if (verbose_) {
@@ -462,12 +456,12 @@ bool Planner::planForProblemIdx(int problem_index, bool reverse) {
 
     // Write planning stats to stats file
     stats_file_ << planning_algorithm_ << separator_ << problem_name_ << separator_
-                << problem_index << separator_;
+                << problem_index << separator_ << reverse_;
     for (auto iter = planning_stats.begin(); iter != planning_stats.end(); iter++) {
-        stats_file_ << iter->second;
-        if (std::next(iter) != planning_stats.end()) {
-            stats_file_ << separator_;
-        }
+        stats_file_ << separator_ << iter->second;
+        // if (std::next(iter) != planning_stats.end()) {
+        //     stats_file_ << separator_;
+        // }
     }
     stats_file_ << std::endl;
 
@@ -877,18 +871,18 @@ bool Planner::openPlanningStatsFile(
         return false;
     }
 
-    // Open a planning stats file handle for ~/.ros/benchmarking_smpl/<timestamp>_<problem_name>_<planner>.csv
+    // Open a planning stats file handle for ~/.ros/benchmarking_smpl/<timestamp>-<planner>-<problem_name>-<reverse>.csv
     std::string const stats_file_path = stats_file_prefix_ + "/" + timestamp + "-"
-                                        + problem_name + "-" + planning_algorithm + "."
-                                        + file_suffix_;
+                                        + planning_algorithm + "-" + problem_name +
+					+ (reverse_ ? "-reverse" : "") + "." + file_suffix_;
     stats_file_.open(stats_file_path);
     if (verbose_) {
         ROS_INFO("Open new results file: %s", stats_file_path.c_str());
     }
 
     // Write a header to the planning stats file
-    stats_file_ << "planner" << separator_ << "problem name" << separator_ << "problem index"
-                << separator_ << "edge_expansions" << separator_ << "expansions" << separator_
+    stats_file_ << "planner" << separator_ << "problem name" << separator_ << "problem index" << separator_ 
+                << "reverse" << separator_ << "edge_expansions" << separator_ << "expansions" << separator_
                 << "final epsilon" << separator_ << "final epsilon planning time" << separator_
                 << "initial epsilon" << separator_ << "initial solution expansions"
                 << separator_ << "initial solution planning time" << separator_

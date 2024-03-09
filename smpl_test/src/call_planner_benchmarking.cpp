@@ -53,7 +53,7 @@ int main(int argc, char * argv[]) {
 
     Planner planner(nh, ph, verbose, visualize);
 
-    if (!planner.initForProblemsDir(problems_dir)) {
+    if (!planner.initForProblemsDir(problems_dir, reverse)) {
         ROS_ERROR(
           "Failed to initialize planner for the problems in the specified directory: %s.",
           problems_dir.c_str()
@@ -63,7 +63,7 @@ int main(int argc, char * argv[]) {
 
     for (int i = problem_index_start; i <= problem_index_end; i++) {
         ROS_INFO("Planning for problem no. %d...", i);
-        if (!planner.planForProblemIdx(i, reverse)) {
+        if (!planner.planForProblemIdx(i)) {
             ROS_INFO("FAILED");
         } else {
             ROS_INFO("SUCCEEDED");
