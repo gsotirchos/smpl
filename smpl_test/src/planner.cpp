@@ -603,9 +603,6 @@ void Planner::VisualizePath(moveit_msgs::RobotTrajectory trajectory) {
     while (ros::ok()) {
         auto & point = trajectory.joint_trajectory.points[point_idx];
         auto markers_robot = cc_.getCollisionRobotVisualization(0, point.positions);
-        // for (auto & m : markers.markers) {
-        //     m.ns = "path_animation";
-        // }
         SV_SHOW_INFO(markers_robot);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         point_idx++;
