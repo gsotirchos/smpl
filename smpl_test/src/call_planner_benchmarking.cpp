@@ -31,6 +31,12 @@ int main(int argc, char * argv[]) {
         return 1;
     }
 
+    bool check;
+    if (!ph.getParam("check", check)) {
+        ROS_ERROR("Failed to read 'check' from the param server");
+        return 1;
+    }
+
     // Get planning problems' info
     std::string problems_dir;
     if (!ph.getParam("planning_problems_directory", problems_dir)) {
@@ -63,7 +69,7 @@ int main(int argc, char * argv[]) {
 
     for (int i = problem_index_start; i <= problem_index_end; i++) {
         ROS_INFO("Planning for problem no. %d...", i);
-        if (!planner.planForProblemIdx(i)) {
+        if (!planner.planForProblemIdx(i, check)) {
             ROS_INFO("FAILED");
         } else {
             ROS_INFO("SUCCEEDED");

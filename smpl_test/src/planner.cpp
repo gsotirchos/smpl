@@ -51,6 +51,7 @@ Planner::Planner(
             ROS_INFO("Waiting for RViz instance to start before instantiating a planner...");
         }
         ros::Duration(0.5).sleep();
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
     visualizer_ = new smpl::VisualizerROS(nh_, 100);
@@ -81,7 +82,7 @@ bool Planner::rvizIsRunning() {
     return true;
 }
 
-bool Planner::initForProblemsDir(std::string const & problems_dir, bool const & reverse) {
+bool Planner::initForProblemsDir(std::string const & problems_dir, bool reverse) {
     reverse_ = reverse;
     problems_dir_ = problems_dir;
 
@@ -202,8 +203,7 @@ bool Planner::initForProblemsDir(std::string const & problems_dir, bool const & 
     double df_size_x, df_size_y, df_size_z, df_res, df_origin_x, df_origin_y, df_origin_z,
       max_distance;
 
-    // auto ee_position = rm_->computeFK(request_common_msg.start_state.joint_state.position)
-    //                      .translation();
+    // auto ee_position = rm_->computeFK(request_common_msg.start_state.joint_state.position).translation();
 
     df_size_x = request_common_msg.workspace_parameters.max_corner.x
                 - request_common_msg.workspace_parameters.min_corner.x;
@@ -234,7 +234,6 @@ bool Planner::initForProblemsDir(std::string const & problems_dir, bool const & 
     grid_ = new smpl::OccupancyGrid(df, ref_counted);  // will be deleted in cc_ destructor
 
     grid_->setReferenceFrame(planning_frame_);
-    SV_SHOW_INFO(grid_->getBoundingBoxVisualization());
 
     //////////////////////////////////
     // Initialize Collision Checker //
@@ -339,10 +338,6 @@ bool Planner::initForProblemsDir(std::string const & problems_dir, bool const & 
         return false;
     }
 
-    if (visualize_) {
-        VisualizeCollisionWorld();
-    }
-
     /////////////////
     // Output file //
     /////////////////
@@ -360,7 +355,7 @@ bool Planner::initForProblemsDir(std::string const & problems_dir, bool const & 
     return true;
 }
 
-bool Planner::planForProblemIdx(int problem_index) {
+bool Planner::planForProblemIdx(int problem_index, bool check) {
     // Read the specified problem's parameters
     moveit_msgs::MotionPlanRequest request_msg;
     moveit_msgs::PlanningScene scene_msg;
@@ -377,6 +372,11 @@ bool Planner::planForProblemIdx(int problem_index) {
           problem_index,
           problems_dir_.c_str()
         );
+    }
+
+    // Swap start and goal in case of the reverse problem
+    if (reverse_) {
+        swapStartAndGoal(request_msg.start_state, request_msg.goal_constraints[0]);
     }
 
     // Set reference state for planning and collision
@@ -412,11 +412,6 @@ bool Planner::planForProblemIdx(int problem_index) {
         return false;
     }
 
-    // Swap start and goal in case of the reverse problem
-    if (reverse_) {
-        swapStartAndGoal(request_msg.start_state, request_msg.goal_constraints[0]);
-    }
-
     // Set up planner interface
     planner_interface_ = std::make_shared<smpl::PlannerInterface>(rm_.get(), &cc_, grid_vec_);
     if (!planner_interface_->init(planner_params_)) {
@@ -432,17 +427,23 @@ bool Planner::planForProblemIdx(int problem_index) {
     moveit_msgs::MotionPlanResponse res;
     moveit_msgs::PlanningScene planning_scene;
     planning_scene.robot_state = request_msg.start_state;
+    // request_msg.allowed_planning_time = 1;  // TODO: remove this (just for debugging)
 
-    // TODO: remove (for debugging) ===========================
-    // request_msg.allowed_planning_time = 1;
-    // if (!planner_interface_->checkStart(planning_scene, request_msg, res)) {
-    //     ROS_ERROR("%u: start or goal state in collision!", problem_index);
-    // }
-    // if (visualize_) {
-    //     VisualizeCollisionWorld();
-    // }
-    // return true;
-    // ========================================================
+    // Check start and goal configurations and exit, if so requested
+    if (check) {
+        if (!planner_interface_->checkStart(planning_scene, request_msg, res)) {
+            ROS_ERROR("%u: start or goal state in collision!", problem_index);
+        }
+
+        if (visualize_) {
+            VisualizeCollisionWorld();
+            while (ros::ok()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+            }
+        }
+
+        return true;
+    }
 
     auto plan_found = planner_interface_->solve(planning_scene, request_msg, res);
 
@@ -459,9 +460,6 @@ bool Planner::planForProblemIdx(int problem_index) {
                 << problem_index << separator_ << reverse_;
     for (auto iter = planning_stats.begin(); iter != planning_stats.end(); iter++) {
         stats_file_ << separator_ << iter->second;
-        // if (std::next(iter) != planning_stats.end()) {
-        //     stats_file_ << separator_;
-        // }
     }
     stats_file_ << std::endl;
 
@@ -531,10 +529,6 @@ bool Planner::prepareCSSceneCollisionObjects(std::vector<moveit_msgs::CollisionO
         return false;
     } else {
         collision_objects_ = objects;
-    }
-
-    if (visualize_) {
-        VisualizeCollisionWorld();
     }
 
     return true;
@@ -832,21 +826,21 @@ bool Planner::swapStartAndGoal(
   moveit_msgs::Constraints & goal_state
 ) {
     // Iterate over the goal joint values
-    for (auto & joint_constraint : goal_state.joint_constraints) {
+    for (auto & goal_state_joint_constraint : goal_state.joint_constraints) {
         // Find the corresponding index for that joint in the start state array
-        auto start_joint_index = distance(
+        auto start_state_joint_index = distance(
           start_state.joint_state.name.begin(),
           std::find(
             start_state.joint_state.name.begin(),
             start_state.joint_state.name.end(),
-            joint_constraint.joint_name
+            goal_state_joint_constraint.joint_name
           )
         );
 
         // Swap the values between start and goal positions for this joint
         std::swap(
-          start_state.joint_state.position[start_joint_index],
-          joint_constraint.position
+          start_state.joint_state.position[start_state_joint_index],
+          goal_state_joint_constraint.position
         );
     }
     return true;
@@ -873,22 +867,22 @@ bool Planner::openPlanningStatsFile(
 
     // Open a planning stats file handle for ~/.ros/benchmarking_smpl/<timestamp>-<planner>-<problem_name>-<reverse>.csv
     std::string const stats_file_path = stats_file_prefix_ + "/" + timestamp + "-"
-                                        + planning_algorithm + "-" + problem_name +
-					+ (reverse_ ? "-reverse" : "") + "." + file_suffix_;
+                                        + planning_algorithm + "-" + problem_name
+                                        + +(reverse_ ? "-reverse" : "") + "." + file_suffix_;
     stats_file_.open(stats_file_path);
     if (verbose_) {
         ROS_INFO("Open new results file: %s", stats_file_path.c_str());
     }
 
     // Write a header to the planning stats file
-    stats_file_ << "planner" << separator_ << "problem name" << separator_ << "problem index" << separator_ 
-                << "reverse" << separator_ << "edge_expansions" << separator_ << "expansions" << separator_
-                << "final epsilon" << separator_ << "final epsilon planning time" << separator_
-                << "initial epsilon" << separator_ << "initial solution expansions"
-                << separator_ << "initial solution planning time" << separator_
-                << "solution cost" << separator_ << "solution epsilon" << separator_
-                << "state_expansions" << separator_ << "time"
-                << std::endl;
+    stats_file_ << "planner" << separator_ << "problem name" << separator_ << "problem index"
+                << separator_ << "reverse" << separator_ << "edge_expansions" << separator_
+                << "expansions" << separator_ << "final epsilon" << separator_
+                << "final epsilon planning time" << separator_ << "initial epsilon"
+                << separator_ << "initial solution expansions" << separator_
+                << "initial solution planning time" << separator_ << "solution cost"
+                << separator_ << "solution epsilon" << separator_ << "state_expansions"
+                << separator_ << "time" << std::endl;
 
     return true;
 }
