@@ -850,11 +850,6 @@ bool Planner::openPlanningStatsFile(
     // Delete all existing planning stats files in ~/.ros/benchmarking_smpl
     // boost::filesystem::remove_all(boost::filesystem::path(stats_file_prefix_));
 
-    // Prepare output directory (~/.ros/benchmarking_smpl)
-    if (!boost::filesystem::is_directory(boost::filesystem::path(stats_file_prefix_))) {
-        boost::filesystem::create_directory(boost::filesystem::path(stats_file_prefix_));
-    }
-
     // Create a timestamp
     std::time_t const time = std::time({});
     char timestamp[sizeof("yyyymmddhhmmss")];
@@ -862,14 +857,30 @@ bool Planner::openPlanningStatsFile(
         return false;
     }
 
-    // Open a planning stats file handle for ~/.ros/benchmarking_smpl/<timestamp>-<planner>-<problem_name>-<reverse>.csv
-    std::string const stats_file_path = stats_file_prefix_ + "/" + timestamp + "-"
-                                        + planning_algorithm + "-" + problem_name
-                                        + +(reverse_ ? "-reverse" : "") + "." + file_suffix_;
+    // Prepare output directory (~/.ros/benchmarking_smpl/<timestamp>)
+    if (!boost::filesystem::is_directory(
+          boost::filesystem::path(stats_file_prefix_ + "/" + timestamp)
+        )) {
+        boost::filesystem::create_directories(
+          boost::filesystem::path(stats_file_prefix_ + "/" + timestamp)
+        );
+    }
+
+    // Open a planning stats file handle for ~/.ros/benchmarking_smpl/<timestamp>/<planner>-<problem_name>-<reverse>.csv
+    std::string const stats_file_name = planning_algorithm + "-" + problem_name
+                                        + (reverse_ ? "-reverse" : "") + "." + file_suffix_;
+    std::string const stats_file_path = stats_file_prefix_ + "/" + timestamp + "/"
+                                        + stats_file_name;
     stats_file_.open(stats_file_path);
     if (verbose_) {
         ROS_INFO("Open new results file: %s", stats_file_path.c_str());
     }
+
+    // Make a symlink in ~/.ros/benchmarking_smpl() pointing to this file
+    boost::filesystem::create_symlink(
+      "./" + std::string{timestamp} + "/" + stats_file_name,
+      stats_file_prefix_ + "/" + stats_file_name
+    );
 
     // Write a header to the planning stats file
     stats_file_ << "planner" << separator_ << "problem name" << separator_ << "problem index"
