@@ -1,5 +1,6 @@
 // standard includes
 #include <boost/filesystem.hpp>
+#include <boost/filesystem/operations.hpp>
 #include <ctime>
 #include <moveit_msgs/AllowedCollisionEntry.h>
 #include <moveit_msgs/MotionPlanRequest.h>
@@ -877,6 +878,9 @@ bool Planner::openPlanningStatsFile(
     }
 
     // Make a symlink in ~/.ros/benchmarking_smpl() pointing to this file
+    boost::filesystem::remove(
+      boost::filesystem::path(stats_file_prefix_ + "/" + stats_file_name)
+    );
     boost::filesystem::create_symlink(
       "./" + std::string{timestamp} + "/" + stats_file_name,
       stats_file_prefix_ + "/" + stats_file_name
